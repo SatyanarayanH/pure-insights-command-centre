@@ -1,7 +1,18 @@
 import { z } from 'zod';
-import { IsoDateTimeSchema, PageQuerySchema, RefreshStatusSchema, ReportIdSchema, SeveritySchema } from './common.js';
+import {
+  IsoDateTimeSchema,
+  PageQuerySchema,
+  RefreshStatusSchema,
+  ReportIdSchema,
+  SeveritySchema,
+} from './common.js';
 
-export const ALERT_RULE_IDS = ['latency', 'refresh_failure', 'refresh_unknown', 'invalid_telemetry'] as const;
+export const ALERT_RULE_IDS = [
+  'latency',
+  'refresh_failure',
+  'refresh_unknown',
+  'invalid_telemetry',
+] as const;
 export const AlertRuleIdSchema = z.enum(ALERT_RULE_IDS).meta({ id: 'AlertRuleId' });
 export type AlertRuleId = z.infer<typeof AlertRuleIdSchema>;
 
@@ -12,21 +23,27 @@ export const AlertStatusSchema = z.enum(['firing', 'acknowledged', 'resolved']).
 });
 export type AlertStatus = z.infer<typeof AlertStatusSchema>;
 
-export const AlertSourceSchema = z.enum(['backfill', 'live', 'injected', 'api']).meta({ id: 'AlertSource' });
+export const AlertSourceSchema = z
+  .enum(['backfill', 'live', 'injected', 'api'])
+  .meta({ id: 'AlertSource' });
 export type AlertSource = z.infer<typeof AlertSourceSchema>;
 
 export const AlertRoutingSchema = z
   .object({
     kind: z.enum(['owner', 'admins']),
     ownerEmail: z.string().nullable(),
-    escalated: z.boolean().meta({ description: 'True when the report has no owner, so the alert went to platform admins.' }),
+    escalated: z.boolean().meta({
+      description: 'True when the report has no owner, so the alert went to platform admins.',
+    }),
   })
   .meta({ id: 'AlertRouting' });
 
 export const AlertSchema = z
   .object({
     id: z.string(),
-    fingerprint: z.string().meta({ description: '`<ruleId>:<reportId>`. One open alert per fingerprint.' }),
+    fingerprint: z
+      .string()
+      .meta({ description: '`<ruleId>:<reportId>`. One open alert per fingerprint.' }),
     ruleId: AlertRuleIdSchema,
     ruleName: z.string(),
     reportId: ReportIdSchema,
@@ -34,10 +51,15 @@ export const AlertSchema = z
     severity: SeveritySchema,
     status: AlertStatusSchema,
     message: z.string(),
-    value: z.number().nullable().meta({ description: 'Latest observed value (seconds for latency, streak length for refresh).' }),
+    value: z.number().nullable().meta({
+      description: 'Latest observed value (seconds for latency, streak length for refresh).',
+    }),
     threshold: z.number().nullable(),
     unit: z.string().nullable(),
-    occurrences: z.number().int().meta({ description: 'Breaching observations folded into this alert.' }),
+    occurrences: z
+      .number()
+      .int()
+      .meta({ description: 'Breaching observations folded into this alert.' }),
     reopenCount: z.number().int(),
     isFlapping: z.boolean(),
     firstSeenAt: IsoDateTimeSchema,
@@ -54,7 +76,16 @@ export const AlertSchema = z
 export type Alert = z.infer<typeof AlertSchema>;
 
 export const AlertEventTypeSchema = z
-  .enum(['fired', 'escalated', 'deescalated', 'acknowledged', 'snoozed', 'resolved', 'reopened', 'rerouted'])
+  .enum([
+    'fired',
+    'escalated',
+    'deescalated',
+    'acknowledged',
+    'snoozed',
+    'resolved',
+    'reopened',
+    'rerouted',
+  ])
   .meta({ id: 'AlertEventType' });
 export type AlertEventType = z.infer<typeof AlertEventTypeSchema>;
 
@@ -72,7 +103,9 @@ export const AlertTimelineEntrySchema = z
   .meta({ id: 'AlertTimelineEntry' });
 export type AlertTimelineEntry = z.infer<typeof AlertTimelineEntrySchema>;
 
-export const AlertDetailSchema = AlertSchema.extend({ timeline: z.array(AlertTimelineEntrySchema) }).meta({
+export const AlertDetailSchema = AlertSchema.extend({
+  timeline: z.array(AlertTimelineEntrySchema),
+}).meta({
   id: 'AlertDetail',
 });
 export type AlertDetail = z.infer<typeof AlertDetailSchema>;
@@ -106,7 +139,11 @@ export type AlertStats = z.infer<typeof AlertStatsSchema>;
 
 export const AckAlertRequestSchema = z.object({ note: z.string().trim().max(500).optional() });
 export const SnoozeAlertRequestSchema = z.object({
-  minutes: z.number().int().min(1).max(7 * 24 * 60),
+  minutes: z
+    .number()
+    .int()
+    .min(1)
+    .max(7 * 24 * 60),
 });
 
 export const AlertRuleSchema = z
@@ -115,15 +152,21 @@ export const AlertRuleSchema = z
     name: z.string(),
     description: z.string(),
     enabled: z.boolean(),
-    inBrief: z.boolean().meta({ description: 'True for the two conditions the case-study brief mandates.' }),
-    warningThreshold: z.number().nullable().meta({ description: 'Latency: seconds above which a warning fires.' }),
+    inBrief: z
+      .boolean()
+      .meta({ description: 'True for the two conditions the case-study brief mandates.' }),
+    warningThreshold: z
+      .number()
+      .nullable()
+      .meta({ description: 'Latency: seconds above which a warning fires.' }),
     highThreshold: z.number().nullable(),
     criticalThreshold: z.number().nullable(),
     escalateAfter: z.number().int().nullable().meta({
       description: 'Refresh: consecutive failures after which severity becomes critical.',
     }),
     resolveAfter: z.number().int().meta({
-      description: 'Consecutive healthy observations required before an alert auto-resolves (flap damping).',
+      description:
+        'Consecutive healthy observations required before an alert auto-resolves (flap damping).',
     }),
     updatedAt: IsoDateTimeSchema,
     updatedBy: z.string(),
@@ -142,8 +185,12 @@ export const UpdateAlertRuleRequestSchema = z
   })
   .refine(
     (r) =>
-      (r.warningThreshold === undefined || r.highThreshold === undefined || r.warningThreshold < r.highThreshold) &&
-      (r.highThreshold === undefined || r.criticalThreshold === undefined || r.highThreshold < r.criticalThreshold),
+      (r.warningThreshold === undefined ||
+        r.highThreshold === undefined ||
+        r.warningThreshold < r.highThreshold) &&
+      (r.highThreshold === undefined ||
+        r.criticalThreshold === undefined ||
+        r.highThreshold < r.criticalThreshold),
     { message: 'Thresholds must increase: warning < high < critical.' },
   );
 export type UpdateAlertRuleRequest = z.infer<typeof UpdateAlertRuleRequestSchema>;
@@ -152,22 +199,37 @@ export type UpdateAlertRuleRequest = z.infer<typeof UpdateAlertRuleRequestSchema
 export const TelemetryEventSchema = z
   .object({
     reportId: ReportIdSchema,
-    observedAt: IsoDateTimeSchema.optional().meta({ description: 'Defaults to the time of receipt.' }),
-    loadTimeSec: z.number().min(0).max(3600).optional().meta({ description: 'Dashboard load latency in seconds.' }),
+    observedAt: IsoDateTimeSchema.optional().meta({
+      description: 'Defaults to the time of receipt.',
+    }),
+    loadTimeSec: z
+      .number()
+      .min(0)
+      .max(3600)
+      .optional()
+      .meta({ description: 'Dashboard load latency in seconds.' }),
     refreshStatus: RefreshStatusSchema.optional(),
     creditsConsumed: z.number().optional().meta({
-      description: 'Snowflake credits for the observation window. Negative values are accepted, flagged and never used for cost.',
+      description:
+        'Snowflake credits for the observation window. Negative values are accepted, flagged and never used for cost.',
     }),
   })
-  .refine((e) => e.loadTimeSec !== undefined || e.refreshStatus !== undefined || e.creditsConsumed !== undefined, {
-    message: 'An event must carry at least one of loadTimeSec, refreshStatus, creditsConsumed.',
-  })
+  .refine(
+    (e) =>
+      e.loadTimeSec !== undefined ||
+      e.refreshStatus !== undefined ||
+      e.creditsConsumed !== undefined,
+    {
+      message: 'An event must carry at least one of loadTimeSec, refreshStatus, creditsConsumed.',
+    },
+  )
   .meta({ id: 'TelemetryEvent' });
 export type TelemetryEvent = z.infer<typeof TelemetryEventSchema>;
 
 export const TelemetryIngestRequestSchema = z.object({
   events: z.array(z.unknown()).min(1).max(1000).meta({
-    description: 'Array of TelemetryEvent. Each element is validated on its own, so one bad event does not reject the batch.',
+    description:
+      'Array of TelemetryEvent. Each element is validated on its own, so one bad event does not reject the batch.',
   }),
 });
 

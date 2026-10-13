@@ -15,15 +15,29 @@ import {
  *  server, so a viewer never receives the numbers at all. */
 export const ReportCostSchema = z
   .object({
-    creditsAttributed: z.number().nullable().meta({ description: 'Method A. Null when the reported figure was quarantined.' }),
-    creditsFullyLoaded: z.number().nullable().meta({ description: 'Includes the report\'s share of warehouse idle time.' }),
+    creditsAttributed: z
+      .number()
+      .nullable()
+      .meta({ description: 'Method A. Null when the reported figure was quarantined.' }),
+    creditsFullyLoaded: z
+      .number()
+      .nullable()
+      .meta({ description: "Includes the report's share of warehouse idle time." }),
     snowflakeCostUsd: z.number().nullable(),
     snowflakeCostLoadedUsd: z.number().nullable(),
     awsHostingCostUsd: z.number().nullable(),
     totalCostUsd: z.number().nullable(),
-    snowflakeCostPerViewUsd: z.number().nullable().meta({ description: 'Unit cost per active view, attributed basis.' }),
-    totalCostPerViewUsd: z.number().nullable().meta({ description: 'Unit cost per active view, fully loaded incl. AWS.' }),
-    isCostImputed: z.boolean().meta({ description: 'True when the cost was estimated from execution time (Method C).' }),
+    snowflakeCostPerViewUsd: z
+      .number()
+      .nullable()
+      .meta({ description: 'Unit cost per active view, attributed basis.' }),
+    totalCostPerViewUsd: z
+      .number()
+      .nullable()
+      .meta({ description: 'Unit cost per active view, fully loaded incl. AWS.' }),
+    isCostImputed: z
+      .boolean()
+      .meta({ description: 'True when the cost was estimated from execution time (Method C).' }),
     isCostQuarantined: z.boolean(),
   })
   .meta({ id: 'ReportCost' });
@@ -31,7 +45,8 @@ export type ReportCost = z.infer<typeof ReportCostSchema>;
 
 export const OwnerSourceSchema = z.enum(['telemetry', 'assigned']).meta({
   id: 'OwnerSource',
-  description: 'telemetry: owner as reported by the portal. assigned: set by an admin in the Command Centre.',
+  description:
+    'telemetry: owner as reported by the portal. assigned: set by an admin in the Command Centre.',
 });
 
 export const ReportSummarySchema = z
@@ -69,7 +84,12 @@ export const REPORT_SORT_FIELDS = [
 ] as const;
 
 export const ReportListQuerySchema = PageQuerySchema.extend({
-  q: z.string().trim().max(100).optional().meta({ description: 'Matches report id, name or owner email.' }),
+  q: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .meta({ description: 'Matches report id, name or owner email.' }),
   owner: z.string().trim().max(200).optional(),
   orphaned: QueryBoolSchema.optional(),
   refreshStatus: RefreshStatusSchema.optional(),
@@ -164,7 +184,10 @@ export const OrphanQueueItemSchema = z
     priorityRank: z.number().int(),
     reportId: ReportIdSchema,
     reportName: z.string(),
-    orphanEncoding: z.string().nullable().meta({ description: 'How the source encoded "no owner": NAN_LITERAL or SENTINEL.' }),
+    orphanEncoding: z
+      .string()
+      .nullable()
+      .meta({ description: 'How the source encoded "no owner": NAN_LITERAL or SENTINEL.' }),
     periodsSinceOwned: z.number().int().nullable(),
     suggestedOwner: z.string().nullable(),
     suggestionBasis: z.string().nullable(),
@@ -173,7 +196,9 @@ export const OrphanQueueItemSchema = z
     latencySeverity: LatencySeveritySchema,
     monthlyActiveViews: z.number().int().nullable(),
     activeAlerts: z.number().int(),
-    costAtRiskUsd: z.number().nullable().meta({ description: 'Monthly run-rate with nobody accountable. Null without `costs:read`.' }),
+    costAtRiskUsd: z.number().nullable().meta({
+      description: 'Monthly run-rate with nobody accountable. Null without `costs:read`.',
+    }),
     lifetimeCostWhileOrphanedUsd: z.number().nullable(),
   })
   .meta({ id: 'OrphanQueueItem' });
@@ -184,7 +209,9 @@ export const OrphanQueueSchema = z
     items: z.array(OrphanQueueItemSchema),
     total: z.number().int(),
     totalCostAtRiskUsd: z.number().nullable(),
-    assignableOwners: z.array(z.object({ email: z.string(), name: z.string(), reportsOwned: z.number().int() })),
+    assignableOwners: z.array(
+      z.object({ email: z.string(), name: z.string(), reportsOwned: z.number().int() }),
+    ),
   })
   .meta({ id: 'OrphanQueue' });
 export type OrphanQueue = z.infer<typeof OrphanQueueSchema>;

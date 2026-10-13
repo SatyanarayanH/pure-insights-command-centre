@@ -3,7 +3,12 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { SSE_PATH } from '@picc/contracts';
 import cookieParser from 'cookie-parser';
-import express, { type ErrorRequestHandler, type Express, type RequestHandler, Router } from 'express';
+import express, {
+  type ErrorRequestHandler,
+  type Express,
+  type RequestHandler,
+  Router,
+} from 'express';
 import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
@@ -45,6 +50,9 @@ export function createApp(c: Container): App {
           'script-src': ["'self'", "'unsafe-inline'"],
           'style-src': ["'self'", "'unsafe-inline'"],
           'img-src': ["'self'", 'data:'],
+          // Only meaningful behind TLS. Left on, it breaks plain-HTTP runs on localhost in
+          // browsers that upgrade same-origin asset requests.
+          'upgrade-insecure-requests': config.forceHttps ? [] : null,
         },
       },
     }),
@@ -56,7 +64,10 @@ export function createApp(c: Container): App {
     if (origin && config.corsOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type, x-api-key, x-request-id');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'authorization, content-type, x-api-key, x-request-id',
+      );
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.setHeader('Vary', 'Origin');
     }
@@ -96,14 +107,30 @@ export function createApp(c: Container): App {
     const passed = c.snapshot.reconciliation.every((r) => r.status === 'PASS');
     res.status(passed ? 200 : 503).json({
       status: passed ? 'ready' : 'degraded',
-      warehouse: { dialect: c.snapshot.dialect, builtAt: c.snapshot.builtAt, reports: c.snapshot.dim.length },
+      warehouse: {
+        dialect: c.snapshot.dialect,
+        builtAt: c.snapshot.builtAt,
+        reports: c.snapshot.dim.length,
+      },
     });
   });
 
   const limited = config.env !== 'test';
-  const apiLimiter = rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-7', legacyHeaders: false, skip: () => !limited });
+  const apiLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 600,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    skip: () => !limited,
+  });
   // Credential endpoints get a far tighter budget than the rest of the API.
-  const authLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false, skip: () => !limited });
+  const authLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 20,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    skip: () => !limited,
+  });
 
   const routes = buildRoutes(c);
   const api = Router();
@@ -129,7 +156,11 @@ export function createApp(c: Container): App {
   app.get('/asyncapi.json', (_req, res) => {
     res.json(asyncApi);
   });
-  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApi, { customSiteTitle: 'Command Centre API' }));
+  app.use(
+    '/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(openApi, { customSiteTitle: 'Command Centre API' }),
+  );
 
   app.use(API_PREFIX, (_req, _res, next) => {
     next(new HttpError(404, 'not_found', 'Not found', 'No such endpoint.'));
@@ -144,15 +175,25 @@ export function createApp(c: Container): App {
   }
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
-    const isBodyError = error instanceof SyntaxError || (error as { type?: string }).type === 'entity.too.large';
+    const isBodyError =
+      error instanceof SyntaxError || (error as { type?: string }).type === 'entity.too.large';
     const httpError =
       error instanceof HttpError
         ? error
         : isBodyError
-          ? new HttpError(400, 'bad_request', 'Bad request', 'The request body could not be read as JSON.')
+          ? new HttpError(
+              400,
+              'bad_request',
+              'Bad request',
+              'The request body could not be read as JSON.',
+            )
           : new HttpError(500, 'internal_error', 'Internal error', 'An unexpected error occurred.');
-    if (httpError.status >= 500) logger.error({ err: error, requestId: req.requestId }, 'unhandled error');
-    res.status(httpError.status).type('application/problem+json').send(JSON.stringify(httpError.toProblem(req.requestId)));
+    if (httpError.status >= 500)
+      logger.error({ err: error, requestId: req.requestId }, 'unhandled error');
+    res
+      .status(httpError.status)
+      .type('application/problem+json')
+      .send(JSON.stringify(httpError.toProblem(req.requestId)));
   };
   app.use(errorHandler);
 

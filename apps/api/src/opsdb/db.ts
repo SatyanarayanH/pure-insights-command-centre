@@ -134,7 +134,9 @@ export class OpsDb {
   constructor(path: string) {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
-    this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA synchronous = NORMAL;');
+    this.db.exec(
+      'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA synchronous = NORMAL;',
+    );
     this.db.exec(SCHEMA);
   }
 
@@ -178,7 +180,11 @@ export class OpsDb {
   }
 
   setMeta(key: string, value: string): void {
-    this.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, value);
+    this.run(
+      'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      key,
+      value,
+    );
   }
 
   close(): void {

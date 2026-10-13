@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { RoleSchema, type Role } from '@picc/contracts';
+import { type Role, RoleSchema } from '@picc/contracts';
 import { jwtVerify, SignJWT } from 'jose';
 import type { Config } from '../config.js';
 import { SERVICE_NAME } from '../config.js';
@@ -24,7 +24,10 @@ export class TokenService {
   private readonly key: Uint8Array;
 
   constructor(
-    private readonly config: Pick<Config, 'jwtSecret' | 'accessTokenTtlSec' | 'refreshTokenTtlDays'>,
+    private readonly config: Pick<
+      Config,
+      'jwtSecret' | 'accessTokenTtlSec' | 'refreshTokenTtlDays'
+    >,
     private readonly db: OpsDb,
     private readonly now: () => Date = () => new Date(),
   ) {
@@ -53,7 +56,12 @@ export class TokenService {
       });
       const role = RoleSchema.safeParse(payload.role);
       if (!payload.sub || typeof payload.email !== 'string' || !role.success) return null;
-      return { sub: payload.sub, email: payload.email, name: String(payload.name ?? ''), role: role.data };
+      return {
+        sub: payload.sub,
+        email: payload.email,
+        name: String(payload.name ?? ''),
+        role: role.data,
+      };
     } catch {
       return null;
     }
@@ -76,7 +84,12 @@ export class TokenService {
 
   /** Exchanges a refresh token for a new one. Returns null if it is unknown, expired or reused. */
   rotateRefreshToken(token: string): { userId: string; refreshToken: string } | null {
-    const row = this.db.get<{ user_id: string; family_id: string; expires_at: string; revoked_at: string | null }>(
+    const row = this.db.get<{
+      user_id: string;
+      family_id: string;
+      expires_at: string;
+      revoked_at: string | null;
+    }>(
       'SELECT user_id, family_id, expires_at, revoked_at FROM refresh_tokens WHERE token_hash = ?',
       sha256(token),
     );
@@ -84,12 +97,23 @@ export class TokenService {
     const now = this.now().toISOString();
     if (row.revoked_at) {
       // Reuse of a rotated token: assume theft and end every session in the family.
-      this.db.run('UPDATE refresh_tokens SET revoked_at = ? WHERE family_id = ? AND revoked_at IS NULL', now, row.family_id);
+      this.db.run(
+        'UPDATE refresh_tokens SET revoked_at = ? WHERE family_id = ? AND revoked_at IS NULL',
+        now,
+        row.family_id,
+      );
       return null;
     }
     if (row.expires_at <= now) return null;
-    this.db.run('UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?', now, sha256(token));
-    return { userId: row.user_id, refreshToken: this.issueRefreshToken(row.user_id, row.family_id) };
+    this.db.run(
+      'UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?',
+      now,
+      sha256(token),
+    );
+    return {
+      userId: row.user_id,
+      refreshToken: this.issueRefreshToken(row.user_id, row.family_id),
+    };
   }
 
   revokeRefreshToken(token: string): void {

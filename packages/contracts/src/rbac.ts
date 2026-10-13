@@ -46,13 +46,15 @@ export interface RoleDefinition {
 export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
   admin: {
     label: 'Platform Admin',
-    description: 'Runs the portal. Full visibility, assigns owners, tunes alert rules, reads the audit log.',
+    description:
+      'Runs the portal. Full visibility, assigns owners, tunes alert rules, reads the audit log.',
     scope: 'all',
     permissions: PERMISSIONS,
   },
   finops: {
     label: 'FinOps Analyst',
-    description: 'Owns the cloud bill. Reads every cost, chargeback and data-quality view; changes nothing.',
+    description:
+      'Owns the cloud bill. Reads every cost, chargeback and data-quality view; changes nothing.',
     scope: 'all',
     permissions: [
       'reports:read',
@@ -67,7 +69,8 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
   },
   owner: {
     label: 'Report Owner',
-    description: 'Accountable for specific reports. Sees and acknowledges alerts and cost for those reports only.',
+    description:
+      'Accountable for specific reports. Sees and acknowledges alerts and cost for those reports only.',
     scope: 'own',
     permissions: ['reports:read', 'costs:read', 'pii:read', 'alerts:read', 'alerts:ack'],
   },
@@ -96,6 +99,9 @@ export function maskEmail(email: string): string {
   const at = email.indexOf('@');
   if (at <= 0) return '***';
   const local = email.slice(0, at);
-  const masked = local.length <= 2 ? `${local[0]}*` : `${local[0]}${'*'.repeat(local.length - 2)}${local.at(-1)}`;
+  const masked =
+    local.length <= 2
+      ? `${local[0]}*`
+      : `${local[0]}${'*'.repeat(local.length - 2)}${local.at(-1)}`;
   return `${masked}${email.slice(at)}`;
 }

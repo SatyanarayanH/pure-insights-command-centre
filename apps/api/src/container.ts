@@ -14,7 +14,11 @@ import {
 } from './opsdb/repositories.js';
 import { demoUsers, seedDemoUsers, toPersona } from './opsdb/seed.js';
 import { EventBus } from './realtime/bus.js';
-import { DEFAULT_GATEWAY_OPTIONS, type GatewayOptions, RealtimeGateway } from './realtime/gateway.js';
+import {
+  DEFAULT_GATEWAY_OPTIONS,
+  type GatewayOptions,
+  RealtimeGateway,
+} from './realtime/gateway.js';
 import { TicketStore } from './realtime/tickets.js';
 import { CostService } from './services/costs.js';
 import { DqService } from './services/dq.js';
@@ -62,7 +66,11 @@ export interface ContainerOverrides {
  * collaborators through its constructor, which is what lets the tests build the same graph
  * against an in-memory database and a fixed clock.
  */
-export function createContainer(config: Config, snapshot: WarehouseSnapshot, overrides: ContainerOverrides = {}): Container {
+export function createContainer(
+  config: Config,
+  snapshot: WarehouseSnapshot,
+  overrides: ContainerOverrides = {},
+): Container {
   const logger = overrides.logger ?? createLogger(config);
   const now = overrides.now ?? (() => new Date());
 
@@ -74,7 +82,9 @@ export function createContainer(config: Config, snapshot: WarehouseSnapshot, ove
   const ruleRepository = new AlertRuleRepository(db);
   ruleRepository.seedDefaults(now().toISOString());
 
-  const seed = demoUsers(snapshot.facts.map((f) => f.owner_email).filter((e): e is string => e !== null));
+  const seed = demoUsers(
+    snapshot.facts.map((f) => f.owner_email).filter((e): e is string => e !== null),
+  );
   if (config.demoMode) seedDemoUsers(users, seed, config.demoPassword, now().toISOString());
 
   const ownership = new OwnershipService(new OwnerAssignmentRepository(db), snapshot.dim);
@@ -93,7 +103,11 @@ export function createContainer(config: Config, snapshot: WarehouseSnapshot, ove
   const telemetry = new TelemetryService(db, state, engine, alerts, ownership, bus, now);
 
   const backfill = telemetry.backfill(snapshot);
-  if (backfill.ran) logger.info({ observations: backfill.observations }, 'alert history backfilled from the dataset');
+  if (backfill.ran)
+    logger.info(
+      { observations: backfill.observations },
+      'alert history backfilled from the dataset',
+    );
 
   const reports = new ReportService(snapshot, state, ownership, alerts);
   const costs = new CostService(snapshot, ownership);

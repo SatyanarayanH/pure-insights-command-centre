@@ -1,10 +1,30 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { maskEmail, PERMISSIONS, ROLE_DEFINITIONS, ROLES, type Role, roleHasPermission } from '@picc/contracts';
+import {
+  maskEmail,
+  PERMISSIONS,
+  ROLE_DEFINITIONS,
+  ROLES,
+  type Role,
+  roleHasPermission,
+} from '@picc/contracts';
 import request from 'supertest';
-import { ADMIN, API, createTestContext, FINOPS, OWNER, type TestContext, VIEWER } from './helpers.js';
+import {
+  ADMIN,
+  API,
+  createTestContext,
+  FINOPS,
+  OWNER,
+  type TestContext,
+  VIEWER,
+} from './helpers.js';
 
-const PERSONA: Record<Role, string> = { admin: ADMIN, finops: FINOPS, owner: OWNER, viewer: VIEWER };
+const PERSONA: Record<Role, string> = {
+  admin: ADMIN,
+  finops: FINOPS,
+  owner: OWNER,
+  viewer: VIEWER,
+};
 
 let ctx: TestContext;
 const tokens = {} as Record<Role, string>;
@@ -18,11 +38,14 @@ before(async () => {
   for (const role of ROLES) tokens[role] = await ctx.login(PERSONA[role]);
   const owned = ctx.container.ownership.reportsOwnedBy(OWNER);
   ownedReport = owned[0]!;
-  foreignReport = ctx.container.snapshot.dim.find((d) => d.owner_email !== OWNER && d.owner_email !== null)!.report_id;
+  foreignReport = ctx.container.snapshot.dim.find(
+    (d) => d.owner_email !== OWNER && d.owner_email !== null,
+  )!.report_id;
   const admin = await ctx.get('/alerts?pageSize=500', tokens.admin);
   ownedAlert = admin.body.items.find((a: { reportId: string }) => owned.includes(a.reportId)).id;
-  foreignAlert = admin.body.items.find((a: { reportId: string }) => a.reportId === foreignReport)?.id
-    ?? admin.body.items.find((a: { reportId: string }) => !owned.includes(a.reportId)).id;
+  foreignAlert =
+    admin.body.items.find((a: { reportId: string }) => a.reportId === foreignReport)?.id ??
+    admin.body.items.find((a: { reportId: string }) => !owned.includes(a.reportId)).id;
 });
 after(() => ctx.close());
 
@@ -37,14 +60,20 @@ describe('role definitions', () => {
   it('keeps cost and unmasked email away from viewers, and writes away from finops', () => {
     assert.equal(roleHasPermission('viewer', 'costs:read'), false);
     assert.equal(roleHasPermission('viewer', 'pii:read'), false);
-    for (const write of ['orphans:assign', 'alerts:ack', 'alert-rules:write', 'incidents:inject'] as const) {
+    for (const write of [
+      'orphans:assign',
+      'alerts:ack',
+      'alert-rules:write',
+      'incidents:inject',
+    ] as const) {
       assert.equal(roleHasPermission('finops', write), false, write);
     }
   });
 
   it('scopes report owners to their own reports', () => {
     assert.equal(ROLE_DEFINITIONS.owner.scope, 'own');
-    for (const role of ['admin', 'finops', 'viewer'] as const) assert.equal(ROLE_DEFINITIONS[role].scope, 'all');
+    for (const role of ['admin', 'finops', 'viewer'] as const)
+      assert.equal(ROLE_DEFINITIONS[role].scope, 'all');
   });
 
   it('masks email addresses but keeps them recognisable', () => {
@@ -60,15 +89,20 @@ describe('role definitions', () => {
  */
 describe('access matrix: every route x every role', () => {
   const pathFor = (path: string): string =>
-    path.replace(':reportId', ownedReport).replace(':alertId', ownedAlert).replace(':ruleId', 'latency');
+    path
+      .replace(':reportId', ownedReport)
+      .replace(':alertId', ownedAlert)
+      .replace(':ruleId', 'latency');
 
   it('rejects anonymous calls to every protected route with 401', async () => {
     const protectedRoutes = ctx.routes.filter((r) => r.auth !== 'public');
     assert.ok(protectedRoutes.length >= 25);
     for (const route of protectedRoutes) {
-      const res = await request(ctx.app)[route.method](`${API}${pathFor(route.path)}`).send({});
+      const res = await request(ctx.app)
+        [route.method](`${API}${pathFor(route.path)}`)
+        .send({});
       assert.equal(res.status, 401, `${route.method.toUpperCase()} ${route.path}`);
-      assert.match(res.headers['content-type'], /application\/problem\+json/);
+      assert.match(String(res.headers['content-type']), /application\/problem\+json/);
     }
   });
 
@@ -97,7 +131,10 @@ describe('row-level security (Report Owner)', () => {
     const res = await ctx.get('/reports?pageSize=500', tokens.owner);
     const owned = ctx.container.ownership.reportsOwnedBy(OWNER);
     assert.equal(res.body.total, owned.length);
-    assert.deepEqual(res.body.items.map((r: { reportId: string }) => r.reportId).sort(), [...owned].sort());
+    assert.deepEqual(
+      res.body.items.map((r: { reportId: string }) => r.reportId).sort(),
+      [...owned].sort(),
+    );
   });
 
   it('answers 404 for a report it does not own, exactly as for one that does not exist', async () => {
@@ -121,12 +158,16 @@ describe('row-level security (Report Owner)', () => {
 
     const costs = await ctx.get('/costs/summary', tokens.owner);
     assert.equal(costs.body.scope, 'own');
-    assert.equal(costs.body.platform, null, 'platform-wide reconciliation is not for a single owner');
+    assert.equal(
+      costs.body.platform,
+      null,
+      'platform-wide reconciliation is not for a single owner',
+    );
     assert.equal(costs.body.latest.reports, owned.size);
     assert.equal(costs.body.latest.creditsMeteredCompute, null);
   });
 
-  it('cannot read or acknowledge an alert on someone else\'s report', async () => {
+  it("cannot read or acknowledge an alert on someone else's report", async () => {
     assert.equal((await ctx.get(`/alerts/${foreignAlert}`, tokens.owner)).status, 404);
     assert.equal((await ctx.post(`/alerts/${foreignAlert}/ack`, tokens.owner)).status, 404);
     // The access-matrix run above already acknowledged one alert, so take one still firing.
@@ -180,7 +221,10 @@ describe('machine identity (telemetry emitter)', () => {
       .set('x-api-key', key)
       .send({ events: [{ reportId: ownedReport, loadTimeSec: 3 }] });
     assert.equal(ok.status, 202);
-    const bad = await request(ctx.app).post(`${API}/telemetry`).set('x-api-key', 'wrong-key').send({ events: [{}] });
+    const bad = await request(ctx.app)
+      .post(`${API}/telemetry`)
+      .set('x-api-key', 'wrong-key')
+      .send({ events: [{}] });
     assert.equal(bad.status, 401);
     // The key is only honoured on the ingest route.
     assert.equal((await request(ctx.app).get(`${API}/reports`).set('x-api-key', key)).status, 401);

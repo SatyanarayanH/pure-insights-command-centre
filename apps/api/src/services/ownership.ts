@@ -60,7 +60,13 @@ export class OwnershipService {
     return principal.scope === 'all' || this.ownerOf(reportId).email === principal.email;
   }
 
-  assign(reportId: string, ownerEmail: string, assignedBy: string, at: string, note: string | null): OwnerAssignment {
+  assign(
+    reportId: string,
+    ownerEmail: string,
+    assignedBy: string,
+    at: string,
+    note: string | null,
+  ): OwnerAssignment {
     const assignment = this.assignments.insert({
       reportId,
       ownerEmail,

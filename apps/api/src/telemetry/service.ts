@@ -1,4 +1,9 @@
-import { type AlertSource, type TelemetryEvent, TelemetryEventSchema, type TelemetryIngestResponse } from '@picc/contracts';
+import {
+  type AlertSource,
+  type TelemetryEvent,
+  TelemetryEventSchema,
+  type TelemetryIngestResponse,
+} from '@picc/contracts';
 import type { AlertEngine } from '../alerts/engine.js';
 import type { AlertService } from '../alerts/service.js';
 import type { EngineEvent, Observation } from '../alerts/types.js';
@@ -43,7 +48,12 @@ export class TelemetryService {
     rawEvents.forEach((raw, index) => {
       const parsed = TelemetryEventSchema.safeParse(raw);
       if (!parsed.success) {
-        rejected.push({ index, reason: parsed.error.issues.map((i) => `${i.path.join('.') || 'event'}: ${i.message}`).join('; ') });
+        rejected.push({
+          index,
+          reason: parsed.error.issues
+            .map((i) => `${i.path.join('.') || 'event'}: ${i.message}`)
+            .join('; '),
+        });
       } else if (!this.ownership.exists(parsed.data.reportId)) {
         rejected.push({ index, reason: `Unknown report ${parsed.data.reportId}` });
       } else {
@@ -54,7 +64,9 @@ export class TelemetryService {
     return {
       accepted: valid.length,
       rejected,
-      alertsFired: events.filter((e) => e.type === 'fired' || (e.type === 'updated' && e.change === 'reopened')).length,
+      alertsFired: events.filter(
+        (e) => e.type === 'fired' || (e.type === 'updated' && e.change === 'reopened'),
+      ).length,
       alertsResolved: events.filter((e) => e.type === 'resolved').length,
     };
   }
@@ -126,7 +138,9 @@ export class TelemetryService {
    */
   backfill(snapshot: WarehouseSnapshot): { ran: boolean; observations: number } {
     if (this.db.getMeta(BACKFILL_KEY)) return { ran: false, observations: 0 };
-    const byPeriod = [...snapshot.facts].sort((a, b) => a.period_seq - b.period_seq || a.row_seq - b.row_seq);
+    const byPeriod = [...snapshot.facts].sort(
+      (a, b) => a.period_seq - b.period_seq || a.row_seq - b.row_seq,
+    );
     this.ingest(
       byPeriod.map((fact) => ({
         reportId: fact.report_id,

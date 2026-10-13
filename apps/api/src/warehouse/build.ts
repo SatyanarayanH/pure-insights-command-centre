@@ -11,7 +11,11 @@ import {
 } from './simulator.js';
 
 const MANIFEST_FILE = 'sim_manifest.json';
-const GZIPPED = new Set(['query_history.csv', 'query_attribution_history.csv', 'warehouse_metering_history.csv']);
+const GZIPPED = new Set([
+  'query_history.csv',
+  'query_attribution_history.csv',
+  'warehouse_metering_history.csv',
+]);
 
 export interface EnsureSimulationResult {
   manifest: SimulationManifest;
@@ -41,7 +45,8 @@ export function ensureSimulation(
   const simulation = simulateAccountUsage(rawCsv, params);
   mkdirSync(outDir, { recursive: true });
   for (const [name, content] of Object.entries(simulation.files)) {
-    if (GZIPPED.has(name)) writeFileSync(join(outDir, `${name}.gz`), gzipSync(content, { level: 6 }));
+    if (GZIPPED.has(name))
+      writeFileSync(join(outDir, `${name}.gz`), gzipSync(content, { level: 6 }));
     else writeFileSync(join(outDir, name), content);
   }
   writeFileSync(manifestPath, `${JSON.stringify(simulation.manifest, null, 2)}\n`);

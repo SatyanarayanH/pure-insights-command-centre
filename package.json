@@ -15,7 +15,7 @@
     "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @picc/api\" \"npm run dev -w @picc/web\"",
     "build": "npm run build -w @picc/web && npm run build -w @picc/api",
     "start": "npm run start -w @picc/api",
-    "test": "node --import tsx --test --test-reporter=spec \"apps/api/test/**/*.test.ts\" \"packages/contracts/test/**/*.test.ts\"",
+    "test": "node --import tsx --disable-warning=ExperimentalWarning --test --test-concurrency=1 --test-reporter=spec \"apps/api/test/**/*.test.ts\" \"packages/contracts/test/**/*.test.ts\"",
     "test:e2e": "playwright test",
     "typecheck": "tsc -p packages/contracts && tsc -p apps/api && tsc -p apps/web",
     "lint": "biome check .",
@@ -26,7 +26,9 @@
     "docs:pdf": "node tools/build-spec-pdf.mjs",
     "reset": "node tools/reset.mjs",
     "package": "node tools/package-submission.mjs",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run sql:duckdb"
+    "verify": "npm run lint && npm run typecheck && npm test && npm run docs:check",
+    "docs:check": "npm run docs:generate -w @picc/api -- --check",
+    "screenshots": "SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

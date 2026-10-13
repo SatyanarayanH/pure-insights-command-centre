@@ -83,8 +83,14 @@ describe('ACCOUNT_USAGE simulator', () => {
   it('is deterministic: the same input and parameters give byte-identical files', () => {
     const again = simulateAccountUsage(rawCsv, DEFAULT_SIMULATION_PARAMS);
     assert.deepEqual(again.manifest, simulation.manifest);
-    assert.equal(again.files['query_attribution_history.csv'], simulation.files['query_attribution_history.csv']);
-    assert.equal(again.files['warehouse_metering_history.csv'], simulation.files['warehouse_metering_history.csv']);
+    assert.equal(
+      again.files['query_attribution_history.csv'],
+      simulation.files['query_attribution_history.csv'],
+    );
+    assert.equal(
+      again.files['warehouse_metering_history.csv'],
+      simulation.files['warehouse_metering_history.csv'],
+    );
   });
 
   it('is a pure disaggregation: query credits sum back to the dataset for every report-period', () => {
@@ -108,8 +114,14 @@ describe('ACCOUNT_USAGE simulator', () => {
     }
     for (const input of readReportPeriods(rawCsv)) {
       const key = `${input.reportId}:${input.periodSeq}`;
-      assert.ok(Math.abs(totals.get(key)! - input.credits) < 1e-6, `${key}: ${totals.get(key)} vs ${input.credits}`);
-      assert.equal(counts.get(key), simulatedQueryRows(input.queryCount, DEFAULT_SIMULATION_PARAMS.queriesPerRow));
+      assert.ok(
+        Math.abs(totals.get(key)! - input.credits) < 1e-6,
+        `${key}: ${totals.get(key)} vs ${input.credits}`,
+      );
+      assert.equal(
+        counts.get(key),
+        simulatedQueryRows(input.queryCount, DEFAULT_SIMULATION_PARAMS.queriesPerRow),
+      );
     }
   });
 
@@ -117,7 +129,9 @@ describe('ACCOUNT_USAGE simulator', () => {
     const hours = parseCsvObjects(simulation.files['warehouse_metering_history.csv']);
     assert.ok(hours.length > 20000);
     for (const hour of hours) {
-      assert.ok(Number(hour.CREDITS_USED_COMPUTE) >= Number(hour.CREDITS_ATTRIBUTED_COMPUTE_QUERIES));
+      assert.ok(
+        Number(hour.CREDITS_USED_COMPUTE) >= Number(hour.CREDITS_ATTRIBUTED_COMPUTE_QUERIES),
+      );
       assert.ok(Number(hour.CREDITS_ATTRIBUTED_COMPUTE_QUERIES) >= 0);
     }
     assert.equal(simulation.manifest.totals.creditsReportedNegative, -161.04);
@@ -179,19 +193,20 @@ describe('SQL suite on DuckDB', () => {
 
   it('agrees across attribution methods', async () => {
     const { methods } = await getSnapshot();
-    assert.ok(methods.credits_idle_loaded > methods.credits_direct, 'loading idle time adds credits');
+    assert.ok(
+      methods.credits_idle_loaded > methods.credits_direct,
+      'loading idle time adds credits',
+    );
     assert.ok(methods.correlation! > 0.99, 'methods B and C rank reports the same way');
     assert.ok(methods.median_abs_difference_pct! < 0.05);
   });
 
   it('classifies credits that belong to no catalogued report instead of dropping them', async () => {
     const { unattributed } = await getSnapshot();
-    assert.deepEqual(new Set(unattributed.map((u) => u.attribution_class)), new Set([
-      'OTHER_WORKLOAD',
-      'UNTAGGED',
-      'UNPARSEABLE_TAG',
-      'UNKNOWN_REPORT',
-    ]));
+    assert.deepEqual(
+      new Set(unattributed.map((u) => u.attribution_class)),
+      new Set(['OTHER_WORKLOAD', 'UNTAGGED', 'UNPARSEABLE_TAG', 'UNKNOWN_REPORT']),
+    );
   });
 
   it('finds 14 reports orphaned in the latest period and suggests an owner for each', async () => {
@@ -199,6 +214,10 @@ describe('SQL suite on DuckDB', () => {
     assert.equal(orphanQueue.length, 14);
     assert.ok(orphanQueue.every((o) => o.suggested_owner !== null));
     const risks = orphanQueue.map((o) => o.cost_at_risk_usd!);
-    assert.deepEqual(risks, [...risks].sort((a, b) => b - a), 'ranked by cost at risk');
+    assert.deepEqual(
+      risks,
+      [...risks].sort((a, b) => b - a),
+      'ranked by cost at risk',
+    );
   });
 });

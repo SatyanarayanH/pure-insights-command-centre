@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
-import { type AnyServerEvent, SSE_PATH, serverEventSchema, WS_CLOSE_CODES, WS_PATH } from '@picc/contracts';
+import {
+  type AnyServerEvent,
+  SSE_PATH,
+  serverEventSchema,
+  WS_CLOSE_CODES,
+  WS_PATH,
+} from '@picc/contracts';
 import { WebSocket } from 'ws';
 import { EventBus } from '../src/realtime/bus.js';
 import { TicketStore } from '../src/realtime/tickets.js';
@@ -33,7 +39,10 @@ const ticketFor = async (email: string): Promise<string> =>
 /** A WebSocket client that records everything it receives and lets a test wait for an event. */
 class Client {
   readonly events: AnyServerEvent[] = [];
-  private waiters: { match: (e: AnyServerEvent) => boolean; resolve: (e: AnyServerEvent) => void }[] = [];
+  private waiters: {
+    match: (e: AnyServerEvent) => boolean;
+    resolve: (e: AnyServerEvent) => void;
+  }[] = [];
   closed: Promise<{ code: number; reason: string }>;
 
   constructor(readonly socket: WebSocket) {
@@ -46,7 +55,9 @@ class Client {
         return false;
       });
     });
-    this.closed = new Promise((resolve) => socket.on('close', (code, reason) => resolve({ code, reason: reason.toString() })));
+    this.closed = new Promise((resolve) =>
+      socket.on('close', (code, reason) => resolve({ code, reason: reason.toString() })),
+    );
   }
 
   waitFor<T extends AnyServerEvent['type']>(
@@ -54,11 +65,20 @@ class Client {
     match: (e: Extract<AnyServerEvent, { type: T }>) => boolean = () => true,
     timeoutMs = 3000,
   ): Promise<Extract<AnyServerEvent, { type: T }>> {
-    const test = (e: AnyServerEvent) => e.type === type && match(e as Extract<AnyServerEvent, { type: T }>);
+    const test = (e: AnyServerEvent) =>
+      e.type === type && match(e as Extract<AnyServerEvent, { type: T }>);
     const seen = this.events.find(test);
     if (seen) return Promise.resolve(seen as Extract<AnyServerEvent, { type: T }>);
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`timed out waiting for ${type}; got ${this.events.map((e) => e.type).join(', ')}`)), timeoutMs);
+      const timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              `timed out waiting for ${type}; got ${this.events.map((e) => e.type).join(', ')}`,
+            ),
+          ),
+        timeoutMs,
+      );
       this.waiters.push({
         match: test,
         resolve: (e) => {
@@ -80,7 +100,9 @@ class Client {
 
 async function connect(email: string, query = ''): Promise<Client> {
   const ticket = await ticketFor(email);
-  const client = new Client(new WebSocket(`ws://127.0.0.1:${port}${WS_PATH}?ticket=${ticket}${query}`));
+  const client = new Client(
+    new WebSocket(`ws://127.0.0.1:${port}${WS_PATH}?ticket=${ticket}${query}`),
+  );
   await client.waitFor('connection.ready');
   return client;
 }
@@ -88,7 +110,8 @@ async function connect(email: string, query = ''): Promise<Client> {
 const settle = (ms = 80) => new Promise((resolve) => setTimeout(resolve, ms));
 const spike = (reportId: string, loadTimeSec = 48) =>
   ctx.post('/admin/incidents', tokens[ADMIN], { reportId, kind: 'latency_spike', loadTimeSec });
-const recover = (reportId: string) => ctx.post('/admin/incidents', tokens[ADMIN], { reportId, kind: 'recovery' });
+const recover = (reportId: string) =>
+  ctx.post('/admin/incidents', tokens[ADMIN], { reportId, kind: 'recovery' });
 /** Clears open and recently resolved state so the next breach opens a brand-new alert. */
 const reset = async (reportId: string) => {
   for (let i = 0; i < 3; i++) await recover(reportId);
@@ -100,7 +123,10 @@ describe('event bus', () => {
     for (let i = 0; i < 5; i++) bus.publish('system.notice', 'system', { n: i });
     assert.equal(bus.latestId, 5);
     const replay = bus.replayAfter(2);
-    assert.deepEqual(replay.records.map((r) => r.id), [3, 4, 5]);
+    assert.deepEqual(
+      replay.records.map((r) => r.id),
+      [3, 4, 5],
+    );
     assert.equal(replay.gap, false);
   });
 
@@ -110,8 +136,15 @@ describe('event bus', () => {
     const replay = bus.replayAfter(2);
     assert.equal(replay.gap, true);
     assert.equal(replay.oldestAvailable, 8);
-    assert.deepEqual(replay.records.map((r) => r.id), [8, 9, 10]);
-    assert.equal(bus.replayAfter(7).gap, false, 'resuming from 7 needs 8 onwards, which is still there');
+    assert.deepEqual(
+      replay.records.map((r) => r.id),
+      [8, 9, 10],
+    );
+    assert.equal(
+      bus.replayAfter(7).gap,
+      false,
+      'resuming from 7 needs 8 onwards, which is still there',
+    );
   });
 
   it('keeps delivering when one listener throws', () => {
@@ -130,7 +163,9 @@ describe('tickets', () => {
   it('are single-use and expire after 30 seconds', async () => {
     let now = 0;
     const store = new TicketStore(() => now);
-    const principal = ctx.container.personas.length ? (await import('../src/auth/principal.js')).SERVICE_PRINCIPAL : null;
+    const principal = ctx.container.personas.length
+      ? (await import('../src/auth/principal.js')).SERVICE_PRINCIPAL
+      : null;
     const first = store.issue(principal!);
     assert.ok(store.consume(first));
     assert.equal(store.consume(first), null, 'second use fails');
@@ -187,7 +222,10 @@ describe('WebSocket stream', () => {
     assert.ok(fired.id > 0);
 
     await recover(report);
-    const resolved = await client.waitFor('alert.resolved', (e) => e.data.alert.id === fired.data.alert.id);
+    const resolved = await client.waitFor(
+      'alert.resolved',
+      (e) => e.data.alert.id === fired.data.alert.id,
+    );
     assert.equal(resolved.data.alert.status, 'resolved');
     assert.ok(resolved.id > fired.id, 'ids increase');
     client.close();
@@ -195,10 +233,23 @@ describe('WebSocket stream', () => {
 
   it('pushes alert.fired when an automated refresh fails', async () => {
     const report = 'RPT_251';
-    await ctx.post('/telemetry', tokens[ADMIN], { events: [{ reportId: report, refreshStatus: 'SUCCESS' }, { reportId: report, refreshStatus: 'SUCCESS' }, { reportId: report, refreshStatus: 'SUCCESS' }, { reportId: report, refreshStatus: 'SUCCESS' }] });
+    await ctx.post('/telemetry', tokens[ADMIN], {
+      events: [
+        { reportId: report, refreshStatus: 'SUCCESS' },
+        { reportId: report, refreshStatus: 'SUCCESS' },
+        { reportId: report, refreshStatus: 'SUCCESS' },
+        { reportId: report, refreshStatus: 'SUCCESS' },
+      ],
+    });
     const client = await connect(ADMIN);
-    await ctx.post('/admin/incidents', tokens[ADMIN], { reportId: report, kind: 'refresh_failure' });
-    const fired = await client.waitFor('alert.fired', (e) => e.data.alert.reportId === report && e.data.alert.ruleId === 'refresh_failure');
+    await ctx.post('/admin/incidents', tokens[ADMIN], {
+      reportId: report,
+      kind: 'refresh_failure',
+    });
+    const fired = await client.waitFor(
+      'alert.fired',
+      (e) => e.data.alert.reportId === report && e.data.alert.ruleId === 'refresh_failure',
+    );
     assert.equal(fired.data.alert.severity, 'high');
     assert.match(fired.data.alert.message, /refresh failed/i);
     client.close();
@@ -211,12 +262,22 @@ describe('WebSocket stream', () => {
     await spike(report, 20);
     const fired = await client.waitFor('alert.fired', (e) => e.data.alert.reportId === report);
     await spike(report, 21);
-    const updated = await client.waitFor('alert.updated', (e) => e.data.alert.id === fired.data.alert.id);
+    const updated = await client.waitFor(
+      'alert.updated',
+      (e) => e.data.alert.id === fired.data.alert.id,
+    );
     assert.equal(updated.data.change, 'occurrence');
     assert.equal(updated.data.alert.occurrences, 2);
     await spike(report, 50);
-    await client.waitFor('alert.updated', (e) => e.data.alert.id === fired.data.alert.id && e.data.change === 'escalated');
-    assert.equal(client.events.filter((e) => e.type === 'alert.fired' && e.data.alert.reportId === report).length, 1);
+    await client.waitFor(
+      'alert.updated',
+      (e) => e.data.alert.id === fired.data.alert.id && e.data.change === 'escalated',
+    );
+    assert.equal(
+      client.events.filter((e) => e.type === 'alert.fired' && e.data.alert.reportId === report)
+        .length,
+      1,
+    );
     client.close();
   });
 
@@ -227,14 +288,19 @@ describe('WebSocket stream', () => {
     await spike(report);
     const fired = await watcher.waitFor('alert.fired', (e) => e.data.alert.reportId === report);
     await ctx.post(`/alerts/${fired.data.alert.id}/ack`, tokens[ADMIN], { note: 'on it' });
-    const updated = await watcher.waitFor('alert.updated', (e) => e.data.change === 'acknowledged' && e.data.alert.id === fired.data.alert.id);
+    const updated = await watcher.waitFor(
+      'alert.updated',
+      (e) => e.data.change === 'acknowledged' && e.data.alert.id === fired.data.alert.id,
+    );
     assert.equal(updated.data.alert.status, 'acknowledged');
     watcher.close();
   });
 
   it('applies row-level security: an owner only receives events for reports they own', async () => {
     const owned = ctx.container.ownership.reportsOwnedBy(OWNER)[0]!;
-    const foreign = ctx.container.snapshot.dim.find((d) => d.owner_email !== null && d.owner_email !== OWNER)!.report_id;
+    const foreign = ctx.container.snapshot.dim.find(
+      (d) => d.owner_email !== null && d.owner_email !== OWNER,
+    )!.report_id;
     await reset(owned);
     await reset(foreign);
     const owner = await connect(OWNER, '&topics=alerts,telemetry');
@@ -247,19 +313,31 @@ describe('WebSocket stream', () => {
     await owner.waitFor('alert.fired', (e) => e.data.alert.reportId === owned);
 
     const leaked = owner.events.filter((e) => JSON.stringify(e).includes(foreign));
-    assert.deepEqual(leaked, [], 'nothing about the foreign report reached the owner, on any topic');
+    assert.deepEqual(
+      leaked,
+      [],
+      'nothing about the foreign report reached the owner, on any topic',
+    );
     owner.close();
     admin.close();
   });
 
   it('applies field-level security: a viewer receives masked owner emails', async () => {
-    const report = ctx.container.snapshot.dim.find((d) => d.owner_email !== null && d.owner_email !== OWNER && d.report_id > 'RPT_260')!;
+    const report = ctx.container.snapshot.dim.find(
+      (d) => d.owner_email !== null && d.owner_email !== OWNER && d.report_id > 'RPT_260',
+    )!;
     await reset(report.report_id);
     const viewer = await connect(VIEWER);
     const admin = await connect(ADMIN);
     await spike(report.report_id);
-    const forViewer = await viewer.waitFor('alert.fired', (e) => e.data.alert.reportId === report.report_id);
-    const forAdmin = await admin.waitFor('alert.fired', (e) => e.data.alert.reportId === report.report_id);
+    const forViewer = await viewer.waitFor(
+      'alert.fired',
+      (e) => e.data.alert.reportId === report.report_id,
+    );
+    const forAdmin = await admin.waitFor(
+      'alert.fired',
+      (e) => e.data.alert.reportId === report.report_id,
+    );
     assert.equal(forAdmin.data.alert.routing.ownerEmail, report.owner_email);
     assert.notEqual(forViewer.data.alert.routing.ownerEmail, report.owner_email);
     assert.match(forViewer.data.alert.routing.ownerEmail!, /^u\*+\d@company\.com$/);
@@ -273,13 +351,24 @@ describe('WebSocket stream', () => {
     const client = await connect(ADMIN);
     await spike(orphan);
     const fired = await client.waitFor('alert.fired', (e) => e.data.alert.reportId === orphan);
-    assert.deepEqual(fired.data.alert.routing, { kind: 'admins', ownerEmail: null, escalated: true });
+    assert.deepEqual(fired.data.alert.routing, {
+      kind: 'admins',
+      ownerEmail: null,
+      escalated: true,
+    });
 
     await ctx.post(`/reports/${orphan}/owner`, tokens[ADMIN], { ownerEmail: OWNER });
     const changed = await client.waitFor('report.owner_changed', (e) => e.data.reportId === orphan);
     assert.equal(changed.data.ownerEmail, OWNER);
-    const rerouted = await client.waitFor('alert.updated', (e) => e.data.change === 'rerouted' && e.data.alert.id === fired.data.alert.id);
-    assert.deepEqual(rerouted.data.alert.routing, { kind: 'owner', ownerEmail: OWNER, escalated: false });
+    const rerouted = await client.waitFor(
+      'alert.updated',
+      (e) => e.data.change === 'rerouted' && e.data.alert.id === fired.data.alert.id,
+    );
+    assert.deepEqual(rerouted.data.alert.routing, {
+      kind: 'owner',
+      ownerEmail: OWNER,
+      escalated: false,
+    });
     client.close();
   });
 
@@ -301,11 +390,22 @@ describe('WebSocket stream', () => {
     assert.equal(ready.data.resumedFrom, lastSeen);
     assert.ok(ready.data.replayed >= 2);
     await settle();
-    const replayed = second.events.filter((e) => e.type === 'alert.updated' && e.data.alert.reportId === report);
-    assert.deepEqual(replayed.map((e) => (e.type === 'alert.updated' ? e.data.alert.value : null)), [35, 52]);
+    const replayed = second.events.filter(
+      (e) => e.type === 'alert.updated' && e.data.alert.reportId === report,
+    );
+    assert.deepEqual(
+      replayed.map((e) => (e.type === 'alert.updated' ? e.data.alert.value : null)),
+      [35, 52],
+    );
     const ids = second.events.filter((e) => e.id > 0).map((e) => e.id);
-    assert.deepEqual(ids, [...ids].sort((a, b) => a - b));
-    assert.ok(ids.every((id) => id > lastSeen), 'nothing already seen is sent again');
+    assert.deepEqual(
+      ids,
+      [...ids].sort((a, b) => a - b),
+    );
+    assert.ok(
+      ids.every((id) => id > lastSeen),
+      'nothing already seen is sent again',
+    );
     second.close();
   });
 
@@ -318,7 +418,10 @@ describe('WebSocket stream', () => {
     const subscribed = await client.waitFor('subscribed');
     assert.ok(subscribed.data.topics.includes('telemetry'));
     await spike('RPT_256', 16);
-    const observed = await client.waitFor('telemetry.observed', (e) => e.data.reportId === 'RPT_256');
+    const observed = await client.waitFor(
+      'telemetry.observed',
+      (e) => e.data.reportId === 'RPT_256',
+    );
     assert.equal(observed.data.breach, true);
     assert.equal(observed.data.loadTimeSec, 16);
 
@@ -345,20 +448,30 @@ describe('WebSocket stream', () => {
 
   it('counts live connections in system status', async () => {
     await settle();
-    const before = (await ctx.get('/system/status', tokens[ADMIN])).body.realtime.webSocketClients as number;
+    const before = (await ctx.get('/system/status', tokens[ADMIN])).body.realtime
+      .webSocketClients as number;
     const client = await connect(ADMIN);
-    assert.equal((await ctx.get('/system/status', tokens[ADMIN])).body.realtime.webSocketClients, before + 1);
+    assert.equal(
+      (await ctx.get('/system/status', tokens[ADMIN])).body.realtime.webSocketClients,
+      before + 1,
+    );
     client.close();
   });
 });
 
 describe('Server-Sent Events stream', () => {
   /** Reads SSE frames from a fetch body until `count` events have arrived. */
-  async function readSse(url: string, count: number, headers: Record<string, string> = {}, onOpen?: () => Promise<unknown>) {
+  async function readSse(
+    url: string,
+    count: number,
+    headers: Record<string, string> = {},
+    onOpen?: () => Promise<unknown>,
+  ) {
     const controller = new AbortController();
     const res = await fetch(url, { headers, signal: controller.signal });
     const frames: { id: string | null; event: string; data: AnyServerEvent }[] = [];
-    if (res.status !== 200) return { status: res.status, contentType: res.headers.get('content-type'), frames };
+    if (res.status !== 200)
+      return { status: res.status, contentType: res.headers.get('content-type'), frames };
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -372,9 +485,18 @@ describe('Server-Sent Events stream', () => {
       while (boundary !== -1) {
         const block = buffer.slice(0, boundary);
         buffer = buffer.slice(boundary + 2);
-        const field = (name: string) => block.split('\n').find((l) => l.startsWith(`${name}: `))?.slice(name.length + 2) ?? null;
+        const field = (name: string) =>
+          block
+            .split('\n')
+            .find((l) => l.startsWith(`${name}: `))
+            ?.slice(name.length + 2) ?? null;
         const data = field('data');
-        if (data) frames.push({ id: field('id'), event: field('event')!, data: JSON.parse(data) as AnyServerEvent });
+        if (data)
+          frames.push({
+            id: field('id'),
+            event: field('event')!,
+            data: JSON.parse(data) as AnyServerEvent,
+          });
         boundary = buffer.indexOf('\n\n');
       }
       if (!opened && frames.length > 0 && onOpen) {
@@ -390,7 +512,12 @@ describe('Server-Sent Events stream', () => {
     const report = 'RPT_257';
     await reset(report);
     const ticket = await ticketFor(ADMIN);
-    const result = await readSse(`http://127.0.0.1:${port}${SSE_PATH}?ticket=${ticket}&topics=alerts`, 2, {}, () => spike(report, 33));
+    const result = await readSse(
+      `http://127.0.0.1:${port}${SSE_PATH}?ticket=${ticket}&topics=alerts`,
+      2,
+      {},
+      () => spike(report, 33),
+    );
     assert.equal(result.status, 200);
     assert.match(result.contentType!, /text\/event-stream/);
     const [ready, fired] = result.frames;
@@ -408,7 +535,11 @@ describe('Server-Sent Events stream', () => {
     await spike(report, 22);
     await spike(report, 23);
     const ticket = await ticketFor(ADMIN);
-    const result = await readSse(`http://127.0.0.1:${port}${SSE_PATH}?ticket=${ticket}&topics=alerts`, 3, { 'last-event-id': String(mark) });
+    const result = await readSse(
+      `http://127.0.0.1:${port}${SSE_PATH}?ticket=${ticket}&topics=alerts`,
+      3,
+      { 'last-event-id': String(mark) },
+    );
     const types = result.frames.map((f) => f.event);
     assert.deepEqual(types, ['connection.ready', 'alert.fired', 'alert.updated']);
     assert.ok(result.frames.slice(1).every((f) => Number(f.id) > mark));

@@ -1,4 +1,11 @@
-import type { AlertRule, AlertRuleId, AlertEventType, AlertStatus, Severity, UpdateAlertRuleRequest } from '@picc/contracts';
+import type {
+  AlertEventType,
+  AlertRule,
+  AlertRuleId,
+  AlertStatus,
+  Severity,
+  UpdateAlertRuleRequest,
+} from '@picc/contracts';
 import type { OpsDb, SqlValue } from '../opsdb/db.js';
 import { DEFAULT_ALERT_RULES } from './rules.js';
 import type { AlertRecord } from './types.js';
@@ -89,7 +96,10 @@ export class AlertRepository {
 
   /** The newest alert for a fingerprint, open or resolved. */
   latestForFingerprint(fingerprint: string): AlertRecord | undefined {
-    const row = this.db.get<AlertRow>('SELECT * FROM alerts WHERE fingerprint = ? ORDER BY seq DESC LIMIT 1', fingerprint);
+    const row = this.db.get<AlertRow>(
+      'SELECT * FROM alerts WHERE fingerprint = ? ORDER BY seq DESC LIMIT 1',
+      fingerprint,
+    );
     return row && toRecord(row);
   }
 
@@ -104,9 +114,29 @@ export class AlertRepository {
          occurrences, reopen_count, ok_streak, obs_since_resolved, first_seen_at, last_seen_at, resolved_at,
          acknowledged_by, acknowledged_at, ack_note, snoozed_until, source, seq)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      a.id, a.fingerprint, a.ruleId, a.reportId, a.severity, a.status, a.message, a.value, a.threshold, a.unit,
-      a.occurrences, a.reopenCount, a.okStreak, a.obsSinceResolved, a.firstSeenAt, a.lastSeenAt, a.resolvedAt,
-      a.acknowledgedBy, a.acknowledgedAt, a.ackNote, a.snoozedUntil, a.source, a.seq,
+      a.id,
+      a.fingerprint,
+      a.ruleId,
+      a.reportId,
+      a.severity,
+      a.status,
+      a.message,
+      a.value,
+      a.threshold,
+      a.unit,
+      a.occurrences,
+      a.reopenCount,
+      a.okStreak,
+      a.obsSinceResolved,
+      a.firstSeenAt,
+      a.lastSeenAt,
+      a.resolvedAt,
+      a.acknowledgedBy,
+      a.acknowledgedAt,
+      a.ackNote,
+      a.snoozedUntil,
+      a.source,
+      a.seq,
     );
   }
 
@@ -116,21 +146,52 @@ export class AlertRepository {
          reopen_count = ?, ok_streak = ?, obs_since_resolved = ?, last_seen_at = ?, resolved_at = ?,
          acknowledged_by = ?, acknowledged_at = ?, ack_note = ?, snoozed_until = ?
        WHERE id = ?`,
-      a.severity, a.status, a.message, a.value, a.threshold, a.unit, a.occurrences,
-      a.reopenCount, a.okStreak, a.obsSinceResolved, a.lastSeenAt, a.resolvedAt,
-      a.acknowledgedBy, a.acknowledgedAt, a.ackNote, a.snoozedUntil, a.id,
+      a.severity,
+      a.status,
+      a.message,
+      a.value,
+      a.threshold,
+      a.unit,
+      a.occurrences,
+      a.reopenCount,
+      a.okStreak,
+      a.obsSinceResolved,
+      a.lastSeenAt,
+      a.resolvedAt,
+      a.acknowledgedBy,
+      a.acknowledgedAt,
+      a.ackNote,
+      a.snoozedUntil,
+      a.id,
     );
   }
 
-  addEvent(alertId: string, type: AlertEventType, at: string, actor: string, severity: Severity | null, value: number | null, detail: string | null): void {
+  addEvent(
+    alertId: string,
+    type: AlertEventType,
+    at: string,
+    actor: string,
+    severity: Severity | null,
+    value: number | null,
+    detail: string | null,
+  ): void {
     this.db.run(
       'INSERT INTO alert_events (alert_id, type, at, actor, severity, value, detail) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      alertId, type, at, actor, severity, value, detail,
+      alertId,
+      type,
+      at,
+      actor,
+      severity,
+      value,
+      detail,
     );
   }
 
   timeline(alertId: string): AlertTimelineRow[] {
-    return this.db.all<AlertTimelineRow>('SELECT * FROM alert_events WHERE alert_id = ? ORDER BY id', alertId);
+    return this.db.all<AlertTimelineRow>(
+      'SELECT * FROM alert_events WHERE alert_id = ? ORDER BY id',
+      alertId,
+    );
   }
 
   private where(filter: AlertFilter): { sql: string; params: SqlValue[] } {
@@ -218,15 +279,26 @@ export class AlertRuleRepository {
            critical_threshold, escalate_after, resolve_after, updated_at, updated_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'system')
          ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, in_brief = excluded.in_brief`,
-        rule.id, rule.name, rule.description, rule.enabled ? 1 : 0, rule.inBrief ? 1 : 0, rule.warningThreshold,
-        rule.highThreshold, rule.criticalThreshold, rule.escalateAfter, rule.resolveAfter, now,
+        rule.id,
+        rule.name,
+        rule.description,
+        rule.enabled ? 1 : 0,
+        rule.inBrief ? 1 : 0,
+        rule.warningThreshold,
+        rule.highThreshold,
+        rule.criticalThreshold,
+        rule.escalateAfter,
+        rule.resolveAfter,
+        now,
       );
     }
     this.cache = null;
   }
 
   list(): AlertRule[] {
-    this.cache ??= this.db.all<RuleRow>('SELECT * FROM alert_rules ORDER BY in_brief DESC, id').map(toRule);
+    this.cache ??= this.db
+      .all<RuleRow>('SELECT * FROM alert_rules ORDER BY in_brief DESC, id')
+      .map(toRule);
     return this.cache;
   }
 
@@ -241,8 +313,15 @@ export class AlertRuleRepository {
     this.db.run(
       `UPDATE alert_rules SET enabled = ?, warning_threshold = ?, high_threshold = ?, critical_threshold = ?,
          escalate_after = ?, resolve_after = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
-      next.enabled ? 1 : 0, next.warningThreshold, next.highThreshold, next.criticalThreshold,
-      next.escalateAfter, next.resolveAfter, now, actor, id,
+      next.enabled ? 1 : 0,
+      next.warningThreshold,
+      next.highThreshold,
+      next.criticalThreshold,
+      next.escalateAfter,
+      next.resolveAfter,
+      now,
+      actor,
+      id,
     );
     this.cache = null;
     return next;

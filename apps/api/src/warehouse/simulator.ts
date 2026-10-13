@@ -86,7 +86,12 @@ export interface SimulationManifest {
   inputSha256: string;
   periods: number;
   reports: number;
-  rows: { telemetry: number; queryHistory: number; queryAttribution: number; warehouseMetering: number };
+  rows: {
+    telemetry: number;
+    queryHistory: number;
+    queryAttribution: number;
+    warehouseMetering: number;
+  };
   totals: {
     creditsReportedPositive: number;
     creditsReportedNegative: number;
@@ -283,12 +288,17 @@ export function simulateAccountUsage(rawCsv: string, params: SimulationParams): 
     for (let i = 0; i < opts.rows; i++) {
       const trueCredits = (opts.trueCredits * weights[i]!) / weightTotal;
       // Concurrency means elapsed time is not perfectly proportional to credits.
-      const executionMs = Math.max(200, Math.round(trueCredits * msPerCredit * rng.logNormal(0, 0.2)));
+      const executionMs = Math.max(
+        200,
+        Math.round(trueCredits * msPerCredit * rng.logNormal(0, 0.2)),
+      );
       const compilationMs = 40 + rng.int(260);
       const elapsedMs = executionMs + compilationMs;
 
       const day = rng.weighted(dayWeights);
-      const hour = opts.hours ? opts.hours[rng.int(opts.hours.length)]! : rng.weighted(HOUR_WEIGHTS);
+      const hour = opts.hours
+        ? opts.hours[rng.int(opts.hours.length)]!
+        : rng.weighted(HOUR_WEIGHTS);
       let startMs = opts.period.start.getTime() + day * DAY_MS + hour * HOUR_MS + rng.int(HOUR_MS);
       // Keep each query inside its own period so period totals reconcile exactly.
       if (startMs + elapsedMs > opts.period.end.getTime()) {
@@ -326,7 +336,11 @@ export function simulateAccountUsage(rawCsv: string, params: SimulationParams): 
       );
 
       // Spread the true credits over the warehouse-hours the query was running in.
-      for (let hourStart = Math.floor(startMs / HOUR_MS) * HOUR_MS; hourStart < endMs; hourStart += HOUR_MS) {
+      for (
+        let hourStart = Math.floor(startMs / HOUR_MS) * HOUR_MS;
+        hourStart < endMs;
+        hourStart += HOUR_MS
+      ) {
         const overlap = Math.min(endMs, hourStart + HOUR_MS) - Math.max(startMs, hourStart);
         const key = `${opts.warehouseIndex}:${hourStart}`;
         hourCredits.set(key, (hourCredits.get(key) ?? 0) + (trueCredits * overlap) / elapsedMs);

@@ -33,7 +33,12 @@ export function demoUsers(ownerEmails: readonly string[]): SeedUser[] {
   return [...STAFF, ...owners];
 }
 
-export function seedDemoUsers(users: UserRepository, seed: readonly SeedUser[], password: string, now: string): void {
+export function seedDemoUsers(
+  users: UserRepository,
+  seed: readonly SeedUser[],
+  password: string,
+  now: string,
+): void {
   // One hash for all demo accounts: they share the demo password, and scrypt is slow by design.
   const passwordHash = hashPassword(password);
   for (const user of seed) {

@@ -8,7 +8,9 @@ export const DqRuleSchema = z
     category: z.string(),
     severity: z.string(),
     action: z.enum(['NORMALIZE', 'QUARANTINE', 'FLAG', 'RESTRUCTURE']),
-    inBrief: z.boolean().meta({ description: 'Listed in the case-study brief. False = found by profiling.' }),
+    inBrief: z
+      .boolean()
+      .meta({ description: 'Listed in the case-study brief. False = found by profiling.' }),
     description: z.string(),
     rowsAffected: z.number().int(),
     reportsAffected: z.number().int(),

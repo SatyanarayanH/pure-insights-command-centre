@@ -1,0 +1,1273 @@
+{
+  "asyncapi": "3.0.0",
+  "info": {
+    "title": "Pure Insights Command Centre real-time protocol",
+    "version": "1.0.0+protocol.1",
+    "description": "Operational events pushed to browsers: alert lifecycle, ownership changes and raw telemetry.\n\nTwo transports carry the same events in the same envelope `{ v, id, type, ts, data }`:\n- **WebSocket** at `/ws`: bidirectional; the client can ping and change its topic subscriptions.\n- **Server-Sent Events** at `/api/v1/stream`: server-to-client only; for networks or proxies that block WebSocket.\n\n**Authentication.** Browsers cannot set an Authorization header on either transport, so the client first calls\n`POST /api/v1/realtime/ticket` with its bearer token and opens the stream with `?ticket=`. A ticket works once and expires in 30 seconds.\n\n**Authorisation.** Applied per event at delivery: a Report Owner only receives events for reports they own, and callers without `pii:read` receive masked email addresses. The rules are the same functions the REST API uses.\n\n**Delivery.** At-least-once within the replay buffer. Each topic event has a monotonically increasing `id`; reconnect with `lastEventId` to receive what was missed. If the gap has left the buffer the server sends `replay.gap` and the client refetches state over REST. Handlers should be idempotent on `id`.\n\n**Liveness.** The server sends a protocol-level ping every heartbeat interval and closes connections that do not answer. Clients may also send an application `ping` to measure round-trip time.\n\n**Close codes.** `4401` Missing, expired or already-used ticket · `4408` No heartbeat received · `4429` Client is not reading fast enough · `1001` Server is shutting down."
+  },
+  "defaultContentType": "application/json",
+  "servers": {
+    "local": {
+      "host": "localhost:4000",
+      "protocol": "ws",
+      "description": "Local development"
+    },
+    "production": {
+      "host": "command-centre.example.com",
+      "protocol": "wss",
+      "description": "Behind TLS"
+    }
+  },
+  "channels": {
+    "events": {
+      "address": "/ws",
+      "title": "WebSocket event stream",
+      "description": "Server events, plus client control messages.",
+      "messages": {
+        "connectionReady": {
+          "$ref": "#/components/messages/connectionReady"
+        },
+        "alertFired": {
+          "$ref": "#/components/messages/alertFired"
+        },
+        "alertUpdated": {
+          "$ref": "#/components/messages/alertUpdated"
+        },
+        "alertResolved": {
+          "$ref": "#/components/messages/alertResolved"
+        },
+        "telemetryObserved": {
+          "$ref": "#/components/messages/telemetryObserved"
+        },
+        "reportOwnerChanged": {
+          "$ref": "#/components/messages/reportOwnerChanged"
+        },
+        "systemNotice": {
+          "$ref": "#/components/messages/systemNotice"
+        },
+        "replayGap": {
+          "$ref": "#/components/messages/replayGap"
+        },
+        "subscribed": {
+          "$ref": "#/components/messages/subscribed"
+        },
+        "pong": {
+          "$ref": "#/components/messages/pong"
+        },
+        "error": {
+          "$ref": "#/components/messages/error"
+        },
+        "clientPing": {
+          "$ref": "#/components/messages/clientPing"
+        },
+        "clientSubscribe": {
+          "$ref": "#/components/messages/clientSubscribe"
+        },
+        "clientUnsubscribe": {
+          "$ref": "#/components/messages/clientUnsubscribe"
+        }
+      },
+      "bindings": {
+        "ws": {
+          "query": {
+            "type": "object",
+            "required": [
+              "ticket"
+            ],
+            "properties": {
+              "ticket": {
+                "type": "string",
+                "description": "Single-use ticket from `POST /api/v1/realtime/ticket`. Valid for 30 seconds."
+              },
+              "topics": {
+                "type": "string",
+                "description": "Comma-separated topics. One or more of: alerts, reports, telemetry, system. Default: alerts,reports,system."
+              },
+              "lastEventId": {
+                "type": "integer",
+                "description": "Resume point: the server replays every buffered event with a greater id before sending live events."
+              }
+            }
+          },
+          "bindingVersion": "0.1.0"
+        }
+      }
+    },
+    "eventsSse": {
+      "address": "/api/v1/stream",
+      "title": "Server-Sent Events stream",
+      "description": "Same server events as the WebSocket channel. Each is sent as `event: <type>`, `id: <id>` and `data: <envelope JSON>`. The browser's EventSource resends `Last-Event-ID` on reconnect, which the server honours exactly like `lastEventId`.",
+      "messages": {
+        "connectionReady": {
+          "$ref": "#/components/messages/connectionReady"
+        },
+        "alertFired": {
+          "$ref": "#/components/messages/alertFired"
+        },
+        "alertUpdated": {
+          "$ref": "#/components/messages/alertUpdated"
+        },
+        "alertResolved": {
+          "$ref": "#/components/messages/alertResolved"
+        },
+        "telemetryObserved": {
+          "$ref": "#/components/messages/telemetryObserved"
+        },
+        "reportOwnerChanged": {
+          "$ref": "#/components/messages/reportOwnerChanged"
+        },
+        "systemNotice": {
+          "$ref": "#/components/messages/systemNotice"
+        },
+        "replayGap": {
+          "$ref": "#/components/messages/replayGap"
+        }
+      },
+      "bindings": {
+        "http": {
+          "method": "GET",
+          "query": {
+            "type": "object",
+            "required": [
+              "ticket"
+            ],
+            "properties": {
+              "ticket": {
+                "type": "string",
+                "description": "Single-use ticket from `POST /api/v1/realtime/ticket`. Valid for 30 seconds."
+              },
+              "topics": {
+                "type": "string",
+                "description": "Comma-separated topics. One or more of: alerts, reports, telemetry, system. Default: alerts,reports,system."
+              },
+              "lastEventId": {
+                "type": "integer",
+                "description": "Resume point: the server replays every buffered event with a greater id before sending live events."
+              }
+            }
+          },
+          "bindingVersion": "0.3.0"
+        }
+      }
+    }
+  },
+  "operations": {
+    "receiveEvents": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/events"
+      },
+      "title": "Receive server events",
+      "summary": "Events the server pushes to the client over WebSocket.",
+      "messages": [
+        {
+          "$ref": "#/channels/events/messages/connectionReady"
+        },
+        {
+          "$ref": "#/channels/events/messages/alertFired"
+        },
+        {
+          "$ref": "#/channels/events/messages/alertUpdated"
+        },
+        {
+          "$ref": "#/channels/events/messages/alertResolved"
+        },
+        {
+          "$ref": "#/channels/events/messages/telemetryObserved"
+        },
+        {
+          "$ref": "#/channels/events/messages/reportOwnerChanged"
+        },
+        {
+          "$ref": "#/channels/events/messages/systemNotice"
+        },
+        {
+          "$ref": "#/channels/events/messages/replayGap"
+        },
+        {
+          "$ref": "#/channels/events/messages/subscribed"
+        },
+        {
+          "$ref": "#/channels/events/messages/pong"
+        },
+        {
+          "$ref": "#/channels/events/messages/error"
+        }
+      ]
+    },
+    "sendControl": {
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/events"
+      },
+      "title": "Send control messages",
+      "summary": "Heartbeat and subscription changes sent by the client over WebSocket.",
+      "messages": [
+        {
+          "$ref": "#/channels/events/messages/clientPing"
+        },
+        {
+          "$ref": "#/channels/events/messages/clientSubscribe"
+        },
+        {
+          "$ref": "#/channels/events/messages/clientUnsubscribe"
+        }
+      ]
+    },
+    "receiveEventsSse": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/eventsSse"
+      },
+      "title": "Receive server events (SSE)",
+      "summary": "Events the server pushes to the client over Server-Sent Events.",
+      "messages": [
+        {
+          "$ref": "#/channels/eventsSse/messages/connectionReady"
+        },
+        {
+          "$ref": "#/channels/eventsSse/messages/alertFired"
+        },
+        {
+          "$ref": "#/channels/eventsSse/messages/alertUpdated"
+        },
+        {
+          "$ref": "#/channels/eventsSse/messages/alertResolved"
+        },
+        {
+          "$ref": "#/channels/eventsSse/messages/telemetryObserved"
+        },
+        {
+          "$ref": "#/channels/eventsSse/messages/reportOwnerChanged"
+        },
+        {
+          "$ref": "#/channels/eventsSse/messages/systemNotice"
+        },
+        {
+          "$ref": "#/channels/eventsSse/messages/replayGap"
+        }
+      ]
+    }
+  },
+  "components": {
+    "messages": {
+      "connectionReady": {
+        "name": "connection.ready",
+        "title": "Handshake accepted",
+        "summary": "Handshake accepted",
+        "description": "First message on every connection. States who the server thinks you are and how many missed events follow.\n\nTopic: none (connection-scoped, id is 0, never replayed).",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "connection.ready"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "connectionId": {
+                  "type": "string"
+                },
+                "protocolVersion": {
+                  "type": "number",
+                  "const": 1
+                },
+                "user": {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "all",
+                        "own"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "role",
+                    "scope"
+                  ],
+                  "additionalProperties": false
+                },
+                "topics": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Topic"
+                  }
+                },
+                "heartbeatIntervalMs": {
+                  "type": "integer"
+                },
+                "latestEventId": {
+                  "type": "integer"
+                },
+                "resumedFrom": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "replayed": {
+                  "type": "integer",
+                  "description": "Missed events about to be delivered after this message."
+                }
+              },
+              "required": [
+                "connectionId",
+                "protocolVersion",
+                "user",
+                "topics",
+                "heartbeatIntervalMs",
+                "latestEventId",
+                "resumedFrom",
+                "replayed"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": null
+      },
+      "alertFired": {
+        "name": "alert.fired",
+        "title": "A new alert opened",
+        "summary": "A new alert opened",
+        "description": "A report crossed an alert rule and no alert was open for that rule and report. Sent once per incident, not once per breaching observation.\n\nTopic: `alerts`.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "alert.fired"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "alert": {
+                  "$ref": "#/components/schemas/Alert"
+                }
+              },
+              "required": [
+                "alert"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": "alerts"
+      },
+      "alertUpdated": {
+        "name": "alert.updated",
+        "title": "An open alert changed",
+        "summary": "An open alert changed",
+        "description": "Another breaching observation was folded in (`occurrence`), severity moved, or a person acknowledged or snoozed it.\n\nTopic: `alerts`.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "alert.updated"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "alert": {
+                  "$ref": "#/components/schemas/Alert"
+                },
+                "change": {
+                  "type": "string",
+                  "enum": [
+                    "occurrence",
+                    "escalated",
+                    "deescalated",
+                    "acknowledged",
+                    "snoozed",
+                    "rerouted",
+                    "reopened"
+                  ]
+                }
+              },
+              "required": [
+                "alert",
+                "change"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": "alerts"
+      },
+      "alertResolved": {
+        "name": "alert.resolved",
+        "title": "An alert cleared",
+        "summary": "An alert cleared",
+        "description": "The condition stayed healthy for the rule's `resolveAfter` consecutive observations.\n\nTopic: `alerts`.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "alert.resolved"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "alert": {
+                  "$ref": "#/components/schemas/Alert"
+                }
+              },
+              "required": [
+                "alert"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": "alerts"
+      },
+      "telemetryObserved": {
+        "name": "telemetry.observed",
+        "title": "One telemetry observation was ingested",
+        "summary": "One telemetry observation was ingested",
+        "description": "Raw feed for live tickers. High volume; clients must opt in to the `telemetry` topic.\n\nTopic: `telemetry`.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "telemetry.observed"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "reportId": {
+                  "type": "string",
+                  "pattern": "^RPT_\\d{1,6}$",
+                  "description": "Report identifier",
+                  "example": "RPT_203"
+                },
+                "observedAt": {
+                  "type": "string",
+                  "description": "ISO-8601 timestamp (UTC)",
+                  "format": "date-time"
+                },
+                "loadTimeSec": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "refreshStatus": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RefreshStatus"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "breach": {
+                  "type": "boolean",
+                  "description": "True when this observation violates at least one alert rule."
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "reportId",
+                "observedAt",
+                "loadTimeSec",
+                "refreshStatus",
+                "breach",
+                "source"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": "telemetry"
+      },
+      "reportOwnerChanged": {
+        "name": "report.owner_changed",
+        "title": "A report was assigned an owner",
+        "summary": "A report was assigned an owner",
+        "description": "Clients should refetch report lists and the orphan queue.\n\nTopic: `reports`.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "report.owner_changed"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "reportId": {
+                  "type": "string",
+                  "pattern": "^RPT_\\d{1,6}$",
+                  "description": "Report identifier",
+                  "example": "RPT_203"
+                },
+                "ownerEmail": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "previousOwnerEmail": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "assignedBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "reportId",
+                "ownerEmail",
+                "previousOwnerEmail",
+                "assignedBy"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": "reports"
+      },
+      "systemNotice": {
+        "name": "system.notice",
+        "title": "Operational notice",
+        "summary": "Operational notice",
+        "description": "For example: the telemetry simulator was paused or an alert rule was changed.\n\nTopic: `system`.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "system.notice"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "info",
+                    "warning"
+                  ]
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "level",
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": "system"
+      },
+      "replayGap": {
+        "name": "replay.gap",
+        "title": "Resume was not possible",
+        "summary": "Resume was not possible",
+        "description": "The client asked to resume from an event id that has left the buffer. It must refetch state over REST; live events continue from here.\n\nTopic: none (connection-scoped, id is 0, never replayed).",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "replay.gap"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "requestedFrom": {
+                  "type": "integer"
+                },
+                "oldestAvailable": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "requestedFrom",
+                "oldestAvailable",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": null
+      },
+      "subscribed": {
+        "name": "subscribed",
+        "title": "Subscription changed",
+        "summary": "Subscription changed",
+        "description": "Reply to `subscribe` / `unsubscribe` with the resulting topic set.\n\nTopic: none (connection-scoped, id is 0, never replayed).",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "subscribed"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "topics": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Topic"
+                  }
+                }
+              },
+              "required": [
+                "topics"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": null
+      },
+      "pong": {
+        "name": "pong",
+        "title": "Heartbeat reply",
+        "summary": "Heartbeat reply",
+        "description": "Reply to a client `ping`. Echoes the client timestamp so the client can measure round-trip time.\n\nTopic: none (connection-scoped, id is 0, never replayed).",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "pong"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "clientTs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "clientTs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": null
+      },
+      "error": {
+        "name": "error",
+        "title": "Protocol error",
+        "summary": "Protocol error",
+        "description": "A client message was malformed or not allowed. The connection stays open unless the code is `unauthorized`.\n\nTopic: none (connection-scoped, id is 0, never replayed).",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string",
+              "const": "error"
+            },
+            "ts": {
+              "type": "string",
+              "description": "ISO-8601 timestamp (UTC)",
+              "format": "date-time"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "id",
+            "type",
+            "ts",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "x-topic": null
+      },
+      "clientPing": {
+        "name": "ping",
+        "title": "Heartbeat",
+        "summary": "Heartbeat",
+        "description": "Send at least every `heartbeatIntervalMs`. The server closes connections that stay silent for twice that.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "ping"
+            },
+            "ts": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "clientSubscribe": {
+        "name": "subscribe",
+        "title": "Add topics",
+        "summary": "Add topics",
+        "description": "Adds topics to the connection. Row-level security still applies to everything delivered.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "subscribe"
+            },
+            "topics": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Topic"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "topics"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "clientUnsubscribe": {
+        "name": "unsubscribe",
+        "title": "Remove topics",
+        "summary": "Remove topics",
+        "description": "Stops delivery for the given topics.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "unsubscribe"
+            },
+            "topics": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Topic"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "topics"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "schemas": {
+      "Alert": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "`<ruleId>:<reportId>`. One open alert per fingerprint."
+          },
+          "ruleId": {
+            "$ref": "#/components/schemas/AlertRuleId"
+          },
+          "ruleName": {
+            "type": "string"
+          },
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "reportName": {
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AlertStatus"
+          },
+          "message": {
+            "type": "string"
+          },
+          "value": {
+            "description": "Latest observed value (seconds for latency, streak length for refresh).",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "threshold": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurrences": {
+            "type": "integer",
+            "description": "Breaching observations folded into this alert."
+          },
+          "reopenCount": {
+            "type": "integer"
+          },
+          "isFlapping": {
+            "type": "boolean"
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acknowledgedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acknowledgedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ackNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snoozedUntil": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "routing": {
+            "$ref": "#/components/schemas/AlertRouting"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AlertSource"
+          }
+        },
+        "required": [
+          "id",
+          "fingerprint",
+          "ruleId",
+          "ruleName",
+          "reportId",
+          "reportName",
+          "severity",
+          "status",
+          "message",
+          "value",
+          "threshold",
+          "unit",
+          "occurrences",
+          "reopenCount",
+          "isFlapping",
+          "firstSeenAt",
+          "lastSeenAt",
+          "resolvedAt",
+          "acknowledgedBy",
+          "acknowledgedAt",
+          "ackNote",
+          "snoozedUntil",
+          "routing",
+          "source"
+        ],
+        "additionalProperties": false
+      },
+      "AlertRouting": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admins"
+            ]
+          },
+          "ownerEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "escalated": {
+            "type": "boolean",
+            "description": "True when the report has no owner, so the alert went to platform admins."
+          }
+        },
+        "required": [
+          "kind",
+          "ownerEmail",
+          "escalated"
+        ],
+        "additionalProperties": false
+      },
+      "AlertRuleId": {
+        "type": "string",
+        "enum": [
+          "latency",
+          "refresh_failure",
+          "refresh_unknown",
+          "invalid_telemetry"
+        ]
+      },
+      "AlertSource": {
+        "type": "string",
+        "enum": [
+          "backfill",
+          "live",
+          "injected",
+          "api"
+        ]
+      },
+      "AlertStatus": {
+        "type": "string",
+        "enum": [
+          "firing",
+          "acknowledged",
+          "resolved"
+        ],
+        "description": "firing: condition holds, nobody has taken it. acknowledged: condition holds, someone owns it. resolved: condition cleared."
+      },
+      "RefreshStatus": {
+        "type": "string",
+        "enum": [
+          "SUCCESS",
+          "FAILED",
+          "TIMED_OUT",
+          "UNKNOWN"
+        ],
+        "description": "Outcome of the last automated refresh. UNKNOWN means the portal reported no outcome."
+      },
+      "Severity": {
+        "type": "string",
+        "enum": [
+          "info",
+          "warning",
+          "high",
+          "critical"
+        ]
+      },
+      "Topic": {
+        "type": "string",
+        "enum": [
+          "alerts",
+          "reports",
+          "telemetry",
+          "system"
+        ],
+        "description": "alerts: alert lifecycle. reports: ownership changes. telemetry: every observation (high volume, opt-in). system: operational notices."
+      }
+    }
+  }
+}

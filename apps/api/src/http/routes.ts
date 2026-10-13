@@ -53,8 +53,8 @@ import { API_PREFIX, SERVICE_NAME, SERVICE_VERSION } from '../config.js';
 import type { Container } from '../container.js';
 import type { UserRow } from '../opsdb/repositories.js';
 import { TICKET_TTL_MS } from '../realtime/tickets.js';
-import { defineRoute, type RouteDefinition } from './registry.js';
 import { forbidden, notFound, unauthorized } from './errors.js';
+import { defineRoute, type RouteDefinition } from './registry.js';
 
 export const REFRESH_COOKIE = 'picc_refresh';
 
@@ -69,7 +69,7 @@ export function buildRoutes(c: Container): RouteDefinition[] {
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
       sameSite: 'strict',
-      secure: config.env === 'production',
+      secure: config.forceHttps,
       path: `${API_PREFIX}/auth`,
       maxAge: config.refreshTokenTtlDays * 86_400_000,
     });
@@ -93,7 +93,12 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       requestId,
     });
     return {
-      accessToken: await c.tokens.issueAccessToken({ sub: user.id, email: user.email, name: user.name, role: user.role }),
+      accessToken: await c.tokens.issueAccessToken({
+        sub: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      }),
       expiresIn: config.accessTokenTtlSec,
       user: toUserDto(user),
     };
@@ -107,7 +112,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'getAuthConfig',
       tag: 'Auth',
       summary: 'Sign-in options',
-      description: 'Tells the login screen whether demo mode is on and, if so, which personas can be used for one-click sign-in.',
+      description:
+        'Tells the login screen whether demo mode is on and, if so, which personas can be used for one-click sign-in.',
       auth: 'public',
       response: AuthConfigSchema,
       handler: () => ({ demoMode: config.demoMode, personas: c.personas }),
@@ -118,14 +124,16 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'login',
       tag: 'Auth',
       summary: 'Sign in with email and password',
-      description: 'Returns a short-lived access token and sets the rotating refresh token as an httpOnly cookie.',
+      description:
+        'Returns a short-lived access token and sets the rotating refresh token as an httpOnly cookie.',
       auth: 'public',
       body: LoginRequestSchema,
       response: AuthResponseSchema,
       handler: async ({ body, res, requestId }) => {
         const user = c.users.findByEmail(body.email);
         // Same message and (roughly) same work whether the account exists or not.
-        if (!user || !verifyPassword(body.password, user.password_hash)) throw unauthorized('Invalid email or password.');
+        if (!user || !verifyPassword(body.password, user.password_hash))
+          throw unauthorized('Invalid email or password.');
         return startSession(user, res, 'password', requestId);
       },
     }),
@@ -135,13 +143,16 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'demoLogin',
       tag: 'Auth',
       summary: 'One-click sign-in as a demo persona',
-      description: 'Only available when the server runs with DEMO_MODE=true. Returns 403 otherwise.',
+      description:
+        'Only available when the server runs with DEMO_MODE=true. Returns 403 otherwise.',
       auth: 'public',
       body: DemoLoginRequestSchema,
       response: AuthResponseSchema,
       handler: async ({ body, res, requestId }) => {
         if (!config.demoMode) throw forbidden('Demo sign-in is disabled.');
-        const user = c.personas.some((p) => p.email === body.email) ? c.users.findByEmail(body.email) : undefined;
+        const user = c.personas.some((p) => p.email === body.email)
+          ? c.users.findByEmail(body.email)
+          : undefined;
         if (!user) throw notFound('Demo persona');
         return startSession(user, res, 'demo', requestId);
       },
@@ -152,7 +163,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'refreshSession',
       tag: 'Auth',
       summary: 'Exchange the refresh cookie for a new access token',
-      description: 'Rotates the refresh token. Presenting a token that was already rotated revokes the whole session family.',
+      description:
+        'Rotates the refresh token. Presenting a token that was already rotated revokes the whole session family.',
       auth: 'public',
       response: AuthResponseSchema,
       handler: async ({ req, res }) => {
@@ -165,7 +177,12 @@ export function buildRoutes(c: Container): RouteDefinition[] {
         }
         setRefreshCookie(res, rotated.refreshToken);
         return {
-          accessToken: await c.tokens.issueAccessToken({ sub: user.id, email: user.email, name: user.name, role: user.role }),
+          accessToken: await c.tokens.issueAccessToken({
+            sub: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          }),
           expiresIn: config.accessTokenTtlSec,
           user: toUserDto(user),
         };
@@ -228,7 +245,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'getOverview',
       tag: 'Reports',
       summary: 'System health at a glance',
-      description: 'Counts, latency distribution, 20-period trend and the reports that need attention first. Cost figures are included only with `costs:read`.',
+      description:
+        'Counts, latency distribution, 20-period trend and the reports that need attention first. Cost figures are included only with `costs:read`.',
       auth: 'user',
       permission: 'reports:read',
       rowScoped: true,
@@ -254,7 +272,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'getReport',
       tag: 'Reports',
       summary: 'One report: 20-period history, ownership trail, open alerts, data-quality findings',
-      description: 'Returns 404 for a report outside the caller\'s scope, the same as for one that does not exist.',
+      description:
+        "Returns 404 for a report outside the caller's scope, the same as for one that does not exist.",
       auth: 'user',
       permission: 'reports:read',
       rowScoped: true,
@@ -270,7 +289,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'getOrphanQueue',
       tag: 'Ownership',
       summary: 'Reports with no owner, ranked by cost at risk',
-      description: 'Each entry carries a suggested owner taken from the report\'s own ownership history.',
+      description:
+        "Each entry carries a suggested owner taken from the report's own ownership history.",
       auth: 'user',
       permission: 'orphans:read',
       response: OrphanQueueSchema,
@@ -282,14 +302,16 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'assignReportOwner',
       tag: 'Ownership',
       summary: 'Assign an owner to a report',
-      description: 'Audited. Broadcasts `report.owner_changed` and re-routes the report\'s open alerts to the new owner.',
+      description:
+        "Audited. Broadcasts `report.owner_changed` and re-routes the report's open alerts to the new owner.",
       auth: 'user',
       permission: 'orphans:assign',
       params: ReportParams,
       body: AssignOwnerRequestSchema,
       response: OwnerAssignmentSchema,
       status: 201,
-      handler: ({ principal, params, body, requestId }) => c.orphans.assign(principal, params.reportId, body, requestId),
+      handler: ({ principal, params, body, requestId }) =>
+        c.orphans.assign(principal, params.reportId, body, requestId),
     }),
 
     // ---- Alerts ----------------------------------------------------------------------------
@@ -337,14 +359,16 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'acknowledgeAlert',
       tag: 'Alerts',
       summary: 'Acknowledge an alert',
-      description: 'Marks the alert as owned by the caller. It still resolves on its own once the condition clears.',
+      description:
+        'Marks the alert as owned by the caller. It still resolves on its own once the condition clears.',
       auth: 'user',
       permission: 'alerts:ack',
       rowScoped: true,
       params: AlertParams,
       body: AckAlertRequestSchema,
       response: AlertSchema,
-      handler: ({ principal, params, body, requestId }) => c.alerts.acknowledge(principal, params.alertId, body.note, requestId),
+      handler: ({ principal, params, body, requestId }) =>
+        c.alerts.acknowledge(principal, params.alertId, body.note, requestId),
     }),
     defineRoute({
       method: 'post',
@@ -357,7 +381,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       params: AlertParams,
       body: SnoozeAlertRequestSchema,
       response: AlertSchema,
-      handler: ({ principal, params, body, requestId }) => c.alerts.snooze(principal, params.alertId, body.minutes, requestId),
+      handler: ({ principal, params, body, requestId }) =>
+        c.alerts.snooze(principal, params.alertId, body.minutes, requestId),
     }),
     defineRoute({
       method: 'get',
@@ -376,13 +401,15 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'updateAlertRule',
       tag: 'Alerts',
       summary: 'Change an alert rule',
-      description: 'Audited. New thresholds apply from the next observation; open alerts are re-evaluated as telemetry arrives.',
+      description:
+        'Audited. New thresholds apply from the next observation; open alerts are re-evaluated as telemetry arrives.',
       auth: 'user',
       permission: 'alert-rules:write',
       params: RuleParams,
       body: UpdateAlertRuleRequestSchema,
       response: AlertRuleSchema,
-      handler: ({ principal, params, body, requestId }) => c.alerts.updateRule(principal, params.ruleId, body, requestId),
+      handler: ({ principal, params, body, requestId }) =>
+        c.alerts.updateRule(principal, params.ruleId, body, requestId),
     }),
 
     // ---- Telemetry -------------------------------------------------------------------------
@@ -409,7 +436,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'getCostSummary',
       tag: 'Cost',
       summary: 'Cost by period, and how the metered bill breaks down',
-      description: 'Platform-wide reconciliation (metered, idle, unattributed, method comparison) is returned only to callers who see all reports.',
+      description:
+        'Platform-wide reconciliation (metered, idle, unattributed, method comparison) is returned only to callers who see all reports.',
       auth: 'user',
       permission: 'costs:read',
       rowScoped: true,
@@ -422,7 +450,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'getCostByReport',
       tag: 'Cost',
       summary: 'Unit economics per report',
-      description: 'Credits, dollars and unit cost per active view for one period or for all periods combined.',
+      description:
+        'Credits, dollars and unit cost per active view for one period or for all periods combined.',
       auth: 'user',
       permission: 'costs:read',
       rowScoped: true,
@@ -518,7 +547,11 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       permission: 'audit:read',
       query: AuditQuerySchema,
       response: pageOf(AuditEntrySchema),
-      handler: ({ query }) => ({ ...c.audit.list(query.page, query.pageSize, query.action), page: query.page, pageSize: query.pageSize }),
+      handler: ({ query }) => ({
+        ...c.audit.list(query.page, query.pageSize, query.action),
+        page: query.page,
+        pageSize: query.pageSize,
+      }),
     }),
     defineRoute({
       method: 'post',
@@ -526,7 +559,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       operationId: 'injectIncident',
       tag: 'Admin',
       summary: 'Inject a synthetic incident (demo mode)',
-      description: 'Pushes one observation for the chosen report through the normal telemetry pipeline, so the alert it causes is a real one. Disabled unless DEMO_MODE=true.',
+      description:
+        'Pushes one observation for the chosen report through the normal telemetry pipeline, so the alert it causes is a real one. Disabled unless DEMO_MODE=true.',
       auth: 'user',
       permission: 'incidents:inject',
       body: InjectIncidentRequestSchema,
@@ -553,8 +587,13 @@ export function buildRoutes(c: Container): RouteDefinition[] {
           requestId,
         });
         // A recovery needs as many healthy observations as the slowest rule asks for.
-        const repeats = body.kind === 'recovery' ? Math.max(...c.alerts.listRules().map((r) => r.resolveAfter)) : 1;
-        const responses = Array.from({ length: repeats }, () => c.telemetry.ingestRaw([event], { source: 'injected' }));
+        const repeats =
+          body.kind === 'recovery'
+            ? Math.max(...c.alerts.listRules().map((r) => r.resolveAfter))
+            : 1;
+        const responses = Array.from({ length: repeats }, () =>
+          c.telemetry.ingestRaw([event], { source: 'injected' }),
+        );
         return {
           accepted: responses.reduce((a, r) => a + r.accepted, 0),
           rejected: responses.flatMap((r) => r.rejected),
@@ -624,7 +663,11 @@ export function buildRoutes(c: Container): RouteDefinition[] {
           reconciliationPassed: c.snapshot.reconciliation.filter((r) => r.status === 'PASS').length,
           reconciliationTotal: c.snapshot.reconciliation.length,
         },
-        realtime: { ...c.gateway.stats(), latestEventId: c.bus.latestId, bufferedEvents: c.bus.size },
+        realtime: {
+          ...c.gateway.stats(),
+          latestEventId: c.bus.latestId,
+          bufferedEvents: c.bus.size,
+        },
         simulator: c.simulator.state(),
       }),
     }),

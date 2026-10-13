@@ -15,9 +15,11 @@ import { API_PREFIX, SERVICE_VERSION } from '../config.js';
 import { TICKET_TTL_MS } from '../realtime/tickets.js';
 import { type Json, jsonSchemaOf, sortKeys } from './json-schema.js';
 
-const messageId = (type: string): string => type.replace(/[^A-Za-z0-9]+(.)/g, (_m, c: string) => c.toUpperCase());
+const messageId = (type: string): string =>
+  type.replace(/[^A-Za-z0-9]+(.)/g, (_m, c: string) => c.toUpperCase());
 
-const payload = (schema: z.ZodType, components: Record<string, unknown>): Json => jsonSchemaOf(schema, 'output', components);
+const payload = (schema: z.ZodType, components: Record<string, unknown>): Json =>
+  jsonSchemaOf(schema, 'output', components);
 
 /** Builds the AsyncAPI 3.0 document for the real-time protocol from the contract definitions. */
 export function buildAsyncApi(): Json {
@@ -36,7 +38,9 @@ export function buildAsyncApi(): Json {
       'x-topic': definition.topic,
     };
   }
-  const clientTypes = Object.keys(CLIENT_MESSAGE_DEFINITIONS) as (keyof typeof CLIENT_MESSAGE_DEFINITIONS)[];
+  const clientTypes = Object.keys(
+    CLIENT_MESSAGE_DEFINITIONS,
+  ) as (keyof typeof CLIENT_MESSAGE_DEFINITIONS)[];
   for (const type of clientTypes) {
     const definition = CLIENT_MESSAGE_DEFINITIONS[type];
     messages[`client${messageId(type)[0]!.toUpperCase()}${messageId(type).slice(1)}`] = {
@@ -51,8 +55,11 @@ export function buildAsyncApi(): Json {
 
   const ref = (name: string): Json => ({ $ref: `#/components/messages/${name}` });
   const serverRefs = SERVER_EVENT_TYPES.map((t) => messageId(t));
-  const clientRefs = clientTypes.map((t) => `client${messageId(t)[0]!.toUpperCase()}${messageId(t).slice(1)}`);
-  const channelMessages = (names: string[]): Json => Object.fromEntries(names.map((n) => [n, ref(n)]));
+  const clientRefs = clientTypes.map(
+    (t) => `client${messageId(t)[0]!.toUpperCase()}${messageId(t).slice(1)}`,
+  );
+  const channelMessages = (names: string[]): Json =>
+    Object.fromEntries(names.map((n) => [n, ref(n)]));
   const sseRefs = serverRefs.filter((n) => !['pong', 'subscribed', 'error'].includes(n));
 
   const bindings = {
@@ -70,7 +77,8 @@ export function buildAsyncApi(): Json {
         },
         lastEventId: {
           type: 'integer',
-          description: 'Resume point: the server replays every buffered event with a greater id before sending live events.',
+          description:
+            'Resume point: the server replays every buffered event with a greater id before sending live events.',
         },
       },
     },
@@ -105,7 +113,11 @@ export function buildAsyncApi(): Json {
     defaultContentType: 'application/json',
     servers: {
       local: { host: 'localhost:4000', protocol: 'ws', description: 'Local development' },
-      production: { host: 'command-centre.example.com', protocol: 'wss', description: 'Behind TLS' },
+      production: {
+        host: 'command-centre.example.com',
+        protocol: 'wss',
+        description: 'Behind TLS',
+      },
     },
     channels: {
       events: {
@@ -119,7 +131,7 @@ export function buildAsyncApi(): Json {
         address: SSE_PATH,
         title: 'Server-Sent Events stream',
         description:
-          'Same server events as the WebSocket channel. Each is sent as `event: <type>`, `id: <id>` and `data: <envelope JSON>`. The browser\'s EventSource resends `Last-Event-ID` on reconnect, which the server honours exactly like `lastEventId`.',
+          "Same server events as the WebSocket channel. Each is sent as `event: <type>`, `id: <id>` and `data: <envelope JSON>`. The browser's EventSource resends `Last-Event-ID` on reconnect, which the server honours exactly like `lastEventId`.",
         messages: channelMessages(sseRefs),
         bindings: { http: { method: 'GET', ...bindings, bindingVersion: '0.3.0' } },
       },

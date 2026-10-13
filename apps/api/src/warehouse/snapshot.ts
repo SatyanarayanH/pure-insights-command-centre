@@ -209,7 +209,13 @@ export interface WarehouseSnapshot {
   efficiency: EfficiencyRow[];
   ownershipHistory: OwnershipHistoryRow[];
   periodSummary: PeriodSummaryRow[];
-  unattributed: { attribution_class: string; tag_app: string; tag_report_id: string; query_rows: number; credits: number }[];
+  unattributed: {
+    attribution_class: string;
+    tag_app: string;
+    tag_report_id: string;
+    query_rows: number;
+    credits: number;
+  }[];
   methods: {
     credits_direct: number;
     credits_idle_loaded: number;
@@ -217,7 +223,12 @@ export interface WarehouseSnapshot {
     median_abs_difference_pct: number | null;
     correlation: number | null;
   };
-  correlations: { usage_measure: string; cost_measure: string; pearson_r: number | null; observations: number }[];
+  correlations: {
+    usage_measure: string;
+    cost_measure: string;
+    pearson_r: number | null;
+    observations: number;
+  }[];
   orphanQueue: OrphanQueueRow[];
   chargebackOwners: ChargebackOwnerRow[];
   chargebackLatest: { owner_key: string; total_cost_usd: number }[];
@@ -230,7 +241,10 @@ export interface WarehouseSnapshot {
 
 async function readSnapshot(
   warehouse: Warehouse,
-  meta: Pick<WarehouseSnapshot, 'builtAt' | 'suiteDurationMs' | 'fromCache' | 'queryRowsSimulated' | 'queriesPerRow'>,
+  meta: Pick<
+    WarehouseSnapshot,
+    'builtAt' | 'suiteDurationMs' | 'fromCache' | 'queryRowsSimulated' | 'queriesPerRow'
+  >,
 ): Promise<WarehouseSnapshot> {
   const q = <T>(sql: string) => warehouse.query(sql) as Promise<T[]>;
   const [params] = await q<CostParams>('SELECT * FROM CONFIG.COST_PARAMS');
@@ -261,14 +275,20 @@ async function readSnapshot(
       FROM MART.CREDITS_UNATTRIBUTED
       GROUP BY attribution_class, tag_app, tag_report_id
       ORDER BY credits DESC`),
-    correlations: await q('SELECT usage_measure, cost_measure, pearson_r, observations FROM MART.USAGE_COST_CORRELATION'),
+    correlations: await q(
+      'SELECT usage_measure, cost_measure, pearson_r, observations FROM MART.USAGE_COST_CORRELATION',
+    ),
     orphanQueue: await q<OrphanQueueRow>('SELECT * FROM MART.ORPHAN_QUEUE ORDER BY priority_rank'),
-    chargebackOwners: await q<ChargebackOwnerRow>('SELECT * FROM MART.CHARGEBACK_OWNER ORDER BY total_cost_usd DESC'),
+    chargebackOwners: await q<ChargebackOwnerRow>(
+      'SELECT * FROM MART.CHARGEBACK_OWNER ORDER BY total_cost_usd DESC',
+    ),
     chargebackLatest: await q(`
       SELECT owner_key, total_cost_usd
       FROM MART.CHARGEBACK_OWNER_PERIOD
       WHERE period_seq = (SELECT MAX(period_seq) FROM MART.CHARGEBACK_OWNER_PERIOD)`),
-    anomalies: await q<AnomalyRow>('SELECT * FROM MART.COST_ANOMALIES ORDER BY est_monthly_impact_usd DESC'),
+    anomalies: await q<AnomalyRow>(
+      'SELECT * FROM MART.COST_ANOMALIES ORDER BY est_monthly_impact_usd DESC',
+    ),
     dqRules: await q<DqRuleRow>('SELECT * FROM DQ.RULE_SUMMARY ORDER BY rule_id'),
     dqFindings: await q<DqFindingRow>('SELECT * FROM DQ.FINDINGS ORDER BY rule_id, row_seq'),
     quarantine: await q<QuarantineRow>('SELECT * FROM DQ.QUARANTINE ORDER BY row_seq'),
@@ -290,21 +310,28 @@ export interface BuildWarehouseOptions {
  * The built DuckDB file is cached, keyed by a fingerprint of the input data, the simulation
  * manifest and every SQL file. Change any of them and the next start rebuilds from scratch.
  */
-export async function buildWarehouseSnapshot(options: BuildWarehouseOptions): Promise<WarehouseSnapshot> {
+export async function buildWarehouseSnapshot(
+  options: BuildWarehouseOptions,
+): Promise<WarehouseSnapshot> {
   const { manifest } = ensureSimulation(options.rawCsv, options.generatedDir);
   const hash = createHash('sha256').update(JSON.stringify(manifest));
   for (const file of [...SUITE_FILES, LOADER_FILES.duckdb]) {
     hash.update(readFileSync(join(options.sqlDir, file)));
   }
   const fingerprint = hash.digest('hex');
-  const sim = { queryRowsSimulated: manifest.rows.queryHistory, queriesPerRow: manifest.params.queriesPerRow };
+  const sim = {
+    queryRowsSimulated: manifest.rows.queryHistory,
+    queriesPerRow: manifest.params.queriesPerRow,
+  };
 
   const cachePath = join(options.generatedDir, 'warehouse.duckdb');
   if (options.cache && existsSync(cachePath)) {
     const cached = await DuckDbWarehouse.open(cachePath);
     try {
       const [build] = await cached
-        .query<{ fingerprint: string; built_at: string; suite_duration_ms: number }>('SELECT * FROM CONFIG.BUILD')
+        .query<{ fingerprint: string; built_at: string; suite_duration_ms: number }>(
+          'SELECT * FROM CONFIG.BUILD',
+        )
         .catch(() => []);
       if (build?.fingerprint === fingerprint) {
         return await readSnapshot(cached, {
@@ -333,7 +360,11 @@ export async function buildWarehouseSnapshot(options: BuildWarehouseOptions): Pr
     await warehouse.exec(
       'CREATE OR REPLACE TABLE CONFIG.BUILD (fingerprint VARCHAR, built_at VARCHAR, suite_duration_ms INTEGER)',
     );
-    await warehouse.query('INSERT INTO CONFIG.BUILD VALUES (?, ?, ?)', [fingerprint, builtAt, result.durationMs]);
+    await warehouse.query('INSERT INTO CONFIG.BUILD VALUES (?, ?, ?)', [
+      fingerprint,
+      builtAt,
+      result.durationMs,
+    ]);
     return await readSnapshot(warehouse, {
       builtAt,
       suiteDurationMs: result.durationMs,
@@ -345,4 +376,5 @@ export async function buildWarehouseSnapshot(options: BuildWarehouseOptions): Pr
   }
 }
 
-export const periodLabel = (periodSeq: number): string => `P${String(periodSeq + 1).padStart(2, '0')}`;
+export const periodLabel = (periodSeq: number): string =>
+  `P${String(periodSeq + 1).padStart(2, '0')}`;

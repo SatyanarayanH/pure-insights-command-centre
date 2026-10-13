@@ -19,7 +19,12 @@ export interface Principal {
   permissions: ReadonlySet<Permission>;
 }
 
-export function userPrincipal(user: { id: string; email: string; name: string; role: Role }): Principal {
+export function userPrincipal(user: {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+}): Principal {
   return {
     kind: 'user',
     id: user.id,
@@ -41,7 +46,8 @@ export const SERVICE_PRINCIPAL: Principal = {
   permissions: new Set<Permission>(['telemetry:ingest']),
 };
 
-export const can = (principal: Principal, permission: Permission): boolean => principal.permissions.has(permission);
+export const can = (principal: Principal, permission: Permission): boolean =>
+  principal.permissions.has(permission);
 
 export function toUserDto(user: { id: string; email: string; name: string; role: Role }): User {
   return {

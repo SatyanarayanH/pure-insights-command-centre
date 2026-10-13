@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import type { AlertRule, RefreshStatus } from '@picc/contracts';
-import { AlertEngine, FLAPPING_REOPEN_COUNT, REOPEN_WITHIN_OBSERVATIONS } from '../src/alerts/engine.js';
+import {
+  AlertEngine,
+  FLAPPING_REOPEN_COUNT,
+  REOPEN_WITHIN_OBSERVATIONS,
+} from '../src/alerts/engine.js';
 import { AlertRepository, AlertRuleRepository } from '../src/alerts/repository.js';
 import { evaluate } from '../src/alerts/rules.js';
 import type { EngineEvent, Observation } from '../src/alerts/types.js';
@@ -21,7 +25,11 @@ const latency = (loadTimeSec: number): EngineEvent[] => observe({ loadTimeSec })
 const refresh = (refreshStatus: RefreshStatus, refreshFailureStreak?: number): EngineEvent[] =>
   observe({ refreshStatus, refreshFailureStreak });
 const only = (events: EngineEvent[]): EngineEvent => {
-  assert.equal(events.length, 1, `expected one event, got ${JSON.stringify(events.map((e) => e.type))}`);
+  assert.equal(
+    events.length,
+    1,
+    `expected one event, got ${JSON.stringify(events.map((e) => e.type))}`,
+  );
   return events[0]!;
 };
 const rule = (id: AlertRule['id']): AlertRule => rules.get(id)!;
@@ -38,26 +46,50 @@ beforeEach(() => {
 describe('rule evaluation', () => {
   it('treats "exceeds 15 seconds" as strictly greater than', () => {
     const r = rule('latency');
-    assert.equal(evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', loadTimeSec: 15 })!.breach, false);
-    assert.equal(evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', loadTimeSec: 15.1 })!.breach, true);
+    assert.equal(
+      evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', loadTimeSec: 15 })!.breach,
+      false,
+    );
+    assert.equal(
+      evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', loadTimeSec: 15.1 })!.breach,
+      true,
+    );
   });
 
   it('tiers latency severity at 15 / 30 / 45 seconds', () => {
     const r = rule('latency');
-    const severity = (s: number) => evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', loadTimeSec: s })!.severity;
+    const severity = (s: number) =>
+      evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', loadTimeSec: s })!.severity;
     assert.equal(severity(20), 'warning');
     assert.equal(severity(30.1), 'high');
     assert.equal(severity(55), 'critical');
   });
 
   it('has no opinion when the observation lacks the metric', () => {
-    assert.equal(evaluate(rule('latency'), { reportId: REPORT, observedAt: '', source: 'api', refreshStatus: 'FAILED' }), null);
-    assert.equal(evaluate(rule('refresh_failure'), { reportId: REPORT, observedAt: '', source: 'api', loadTimeSec: 50 }), null);
+    assert.equal(
+      evaluate(rule('latency'), {
+        reportId: REPORT,
+        observedAt: '',
+        source: 'api',
+        refreshStatus: 'FAILED',
+      }),
+      null,
+    );
+    assert.equal(
+      evaluate(rule('refresh_failure'), {
+        reportId: REPORT,
+        observedAt: '',
+        source: 'api',
+        loadTimeSec: 50,
+      }),
+      null,
+    );
   });
 
   it('treats FAILED and TIMED_OUT as failures, and UNKNOWN as neither failure nor success', () => {
     const r = rule('refresh_failure');
-    const status = (s: RefreshStatus) => evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', refreshStatus: s });
+    const status = (s: RefreshStatus) =>
+      evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', refreshStatus: s });
     assert.equal(status('FAILED')!.breach, true);
     assert.equal(status('TIMED_OUT')!.breach, true);
     assert.equal(status('SUCCESS')!.breach, false);
@@ -66,8 +98,15 @@ describe('rule evaluation', () => {
 
   it('flags negative credits', () => {
     const r = rule('invalid_telemetry');
-    assert.equal(evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', creditsConsumed: -7.88 })!.breach, true);
-    assert.equal(evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', creditsConsumed: 0 })!.breach, false);
+    assert.equal(
+      evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', creditsConsumed: -7.88 })!
+        .breach,
+      true,
+    );
+    assert.equal(
+      evaluate(r, { reportId: REPORT, observedAt: '', source: 'api', creditsConsumed: 0 })!.breach,
+      false,
+    );
   });
 });
 
@@ -173,7 +212,13 @@ describe('alert lifecycle', () => {
   it('tracks rules independently on the same report', () => {
     latency(40);
     refresh('FAILED', 1);
-    assert.deepEqual(alerts.active().map((a) => a.ruleId).sort(), ['latency', 'refresh_failure']);
+    assert.deepEqual(
+      alerts
+        .active()
+        .map((a) => a.ruleId)
+        .sort(),
+      ['latency', 'refresh_failure'],
+    );
   });
 
   it('escalates a refresh failure to critical on the third consecutive failure', () => {
@@ -193,7 +238,10 @@ describe('alert lifecycle', () => {
   it('does not let an UNKNOWN refresh resolve or extend a refresh-failure alert', () => {
     const id = only(refresh('FAILED', 1)).alert.id;
     const events = refresh('UNKNOWN', 1);
-    assert.deepEqual(events.map((e) => `${e.alert.ruleId}:${e.type}`), ['refresh_unknown:fired']);
+    assert.deepEqual(
+      events.map((e) => `${e.alert.ruleId}:${e.type}`),
+      ['refresh_unknown:fired'],
+    );
     assert.equal(alerts.get(id)!.status, 'firing');
     assert.equal(alerts.get(id)!.occurrences, 1);
   });

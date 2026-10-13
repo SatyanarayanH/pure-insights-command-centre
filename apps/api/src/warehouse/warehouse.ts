@@ -26,7 +26,10 @@ function normaliseValue(value: unknown): unknown {
   if (typeof value === 'bigint') return Number(value);
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'object' && typeof (value as { toString?: unknown }).toString === 'function') {
+  if (
+    typeof value === 'object' &&
+    typeof (value as { toString?: unknown }).toString === 'function'
+  ) {
     // DuckDB wraps DECIMAL, HUGEINT and similar in value objects that stringify to the number.
     const text = String(value);
     const asNumber = Number(text);

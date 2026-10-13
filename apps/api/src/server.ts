@@ -37,12 +37,18 @@ try {
   container.gateway.attach(server);
 
   if (config.jwtSecretIsEphemeral) {
-    logger.warn('JWT_SECRET is not set: using a random key for this process. Sessions will not survive a restart.');
+    logger.warn(
+      'JWT_SECRET is not set: using a random key for this process. Sessions will not survive a restart.',
+    );
   }
-  if (config.demoMode) logger.warn('DEMO_MODE is on: one-click sign-in and incident injection are enabled.');
+  if (config.demoMode)
+    logger.warn('DEMO_MODE is on: one-click sign-in and incident injection are enabled.');
 
   server.listen(config.port, config.host, () => {
-    logger.info({ port: config.port, routes: routes.length, docs: `http://localhost:${config.port}/docs` }, 'listening');
+    logger.info(
+      { port: config.port, routes: routes.length, docs: `http://localhost:${config.port}/docs` },
+      'listening',
+    );
     if (config.simulatorEnabled) container.simulator.start();
   });
 

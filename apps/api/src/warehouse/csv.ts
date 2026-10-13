@@ -53,7 +53,12 @@ export function csvField(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'number') return String(value);
   // Hot path for the simulator (millions of fields): only pay for quoting when it is needed.
-  if (value.indexOf('"') === -1 && value.indexOf(',') === -1 && value.indexOf('\n') === -1 && value.indexOf('\r') === -1) {
+  if (
+    value.indexOf('"') === -1 &&
+    value.indexOf(',') === -1 &&
+    value.indexOf('\n') === -1 &&
+    value.indexOf('\r') === -1
+  ) {
     return value;
   }
   return `"${value.replaceAll('"', '""')}"`;

@@ -73,7 +73,11 @@ declare module 'express-serve-static-core' {
   }
 }
 
-async function authenticate(req: Request, mode: AuthMode, deps: RouteDeps): Promise<Principal | undefined> {
+async function authenticate(
+  req: Request,
+  mode: AuthMode,
+  deps: RouteDeps,
+): Promise<Principal | undefined> {
   if (mode === 'public') return undefined;
 
   if (mode === 'user-or-service') {
@@ -102,7 +106,10 @@ function parse<T>(schema: z.ZodType<T> | undefined, value: unknown, where: strin
   if (result.success) return result.data;
   throw badRequest(
     `Invalid ${where}.`,
-    result.error.issues.map((issue) => ({ path: [where, ...issue.path].join('.'), message: issue.message })),
+    result.error.issues.map((issue) => ({
+      path: [where, ...issue.path].join('.'),
+      message: issue.message,
+    })),
   );
 }
 
@@ -127,8 +134,16 @@ export function toHandler(route: RouteDefinition, deps: RouteDeps): RequestHandl
       if (deps.validateResponses) {
         const checked = route.response.safeParse(result);
         if (!checked.success) {
-          deps.logger.error({ operationId: route.operationId, issues: checked.error.issues }, 'response violates its contract');
-          throw new HttpError(500, 'response_contract_violation', 'Internal error', `${route.operationId} produced a response that does not match its schema.`);
+          deps.logger.error(
+            { operationId: route.operationId, issues: checked.error.issues },
+            'response violates its contract',
+          );
+          throw new HttpError(
+            500,
+            'response_contract_violation',
+            'Internal error',
+            `${route.operationId} produced a response that does not match its schema.`,
+          );
         }
       }
       res.status(route.status ?? 200).json(result);
@@ -138,7 +153,11 @@ export function toHandler(route: RouteDefinition, deps: RouteDeps): RequestHandl
   };
 }
 
-export function mountRoutes(router: Router, routes: readonly RouteDefinition[], deps: RouteDeps): void {
+export function mountRoutes(
+  router: Router,
+  routes: readonly RouteDefinition[],
+  deps: RouteDeps,
+): void {
   for (const route of routes) {
     router[route.method](route.path, toHandler(route, deps));
   }

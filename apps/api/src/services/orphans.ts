@@ -42,7 +42,10 @@ export class OrphanService {
           suggestionBasis: row.suggestion_basis,
           mostFrequentOwner: presentEmail(principal, row.most_frequent_owner),
           refreshStatus: state?.refreshStatus ?? report.refresh_status,
-          latencySeverity: latencySeverityOf(state?.loadTimeSec ?? report.avg_load_time_sec, latencyRule),
+          latencySeverity: latencySeverityOf(
+            state?.loadTimeSec ?? report.avg_load_time_sec,
+            latencyRule,
+          ),
           monthlyActiveViews: report.monthly_active_views,
           activeAlerts: activeAlerts.get(row.report_id)?.count ?? 0,
           costAtRiskUsd: showCost ? row.cost_at_risk_usd : null,
@@ -57,29 +60,49 @@ export class OrphanService {
       assignableOwners: this.users
         .list()
         .filter((u) => u.role === 'owner')
-        .map((u) => ({ email: u.email, name: u.name, reportsOwned: this.ownership.reportsOwnedBy(u.email).length })),
+        .map((u) => ({
+          email: u.email,
+          name: u.name,
+          reportsOwned: this.ownership.reportsOwnedBy(u.email).length,
+        })),
     };
   }
 
-  assign(principal: Principal, reportId: string, body: AssignOwnerRequest, requestId: string | null): OwnerAssignment {
+  assign(
+    principal: Principal,
+    reportId: string,
+    body: AssignOwnerRequest,
+    requestId: string | null,
+  ): OwnerAssignment {
     if (!this.ownership.exists(reportId)) throw notFound('Report');
     const user = this.users.findByEmail(body.ownerEmail);
-    if (!user || user.role !== 'owner') {
+    if (user?.role !== 'owner') {
       throw badRequest(`${body.ownerEmail} is not a Report Owner account.`, [
         { path: 'ownerEmail', message: 'Must be the email of an existing Report Owner.' },
       ]);
     }
     const current = this.ownership.ownerOf(reportId);
-    if (current.email === user.email) throw conflict(`${reportId} is already owned by ${user.email}.`);
+    if (current.email === user.email)
+      throw conflict(`${reportId} is already owned by ${user.email}.`);
 
-    const assignment = this.ownership.assign(reportId, user.email, principal.email, this.now().toISOString(), body.note ?? null);
+    const assignment = this.ownership.assign(
+      reportId,
+      user.email,
+      principal.email,
+      this.now().toISOString(),
+      body.note ?? null,
+    );
     this.audit.record({
       actor: principal.email,
       actorRole: principal.role,
       action: 'report.owner.assign',
       targetType: 'report',
       targetId: reportId,
-      detail: { ownerEmail: user.email, previousOwnerEmail: current.email, note: body.note ?? null },
+      detail: {
+        ownerEmail: user.email,
+        previousOwnerEmail: current.email,
+        note: body.note ?? null,
+      },
       requestId,
     });
     const payload: OwnerChangedPayload = {

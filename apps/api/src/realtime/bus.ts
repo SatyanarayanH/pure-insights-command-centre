@@ -47,7 +47,14 @@ export class EventBus {
     payload: unknown,
     reportId: string | null = null,
   ): BusRecord<T> {
-    const record: BusRecord<T> = { id: this.nextId++, ts: this.now().toISOString(), type, topic, reportId, payload };
+    const record: BusRecord<T> = {
+      id: this.nextId++,
+      ts: this.now().toISOString(),
+      type,
+      topic,
+      reportId,
+      payload,
+    };
     this.buffer.push(record);
     if (this.buffer.length > this.capacity) this.buffer.shift();
     for (const listener of this.listeners) {

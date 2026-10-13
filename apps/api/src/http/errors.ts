@@ -31,5 +31,6 @@ export const unauthorized = (detail = 'Authentication is required.') =>
   new HttpError(401, 'unauthorized', 'Unauthorized', detail);
 export const forbidden = (detail = 'You do not have permission to do this.') =>
   new HttpError(403, 'forbidden', 'Forbidden', detail);
-export const notFound = (what: string) => new HttpError(404, 'not_found', 'Not found', `${what} was not found.`);
+export const notFound = (what: string) =>
+  new HttpError(404, 'not_found', 'Not found', `${what} was not found.`);
 export const conflict = (detail: string) => new HttpError(409, 'conflict', 'Conflict', detail);

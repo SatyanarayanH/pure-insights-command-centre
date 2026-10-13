@@ -9,7 +9,11 @@ export type Json = Record<string, unknown>;
  * `components` map and referenced from there, so `Alert` is defined once however many
  * operations and messages use it.
  */
-export function jsonSchemaOf(schema: z.ZodType, io: 'input' | 'output', components: Record<string, unknown>): Json {
+export function jsonSchemaOf(
+  schema: z.ZodType,
+  io: 'input' | 'output',
+  components: Record<string, unknown>,
+): Json {
   const generated = z.toJSONSchema(schema, {
     io,
     target: 'draft-2020-12',
@@ -20,10 +24,13 @@ export function jsonSchemaOf(schema: z.ZodType, io: 'input' | 'output', componen
       if (jsonSchema.maximum === Number.MAX_SAFE_INTEGER) delete jsonSchema.maximum;
     },
   });
-  const json = JSON.parse(JSON.stringify(generated).replaceAll('#/$defs/', '#/components/schemas/')) as Json & {
+  const json = JSON.parse(
+    JSON.stringify(generated).replaceAll('#/$defs/', '#/components/schemas/'),
+  ) as Json & {
     $defs?: Record<string, unknown>;
   };
-  for (const [name, definition] of Object.entries(json.$defs ?? {})) components[name] ??= definition;
+  for (const [name, definition] of Object.entries(json.$defs ?? {}))
+    components[name] ??= definition;
   delete json.$defs;
   delete json.$schema;
   return json;

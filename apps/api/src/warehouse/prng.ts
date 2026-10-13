@@ -58,7 +58,10 @@ export function createRng(key: string): Rng {
     },
     hex: (length) => {
       let out = '';
-      while (out.length < length) out += Math.floor(next() * 0x100000000).toString(16).padStart(8, '0');
+      while (out.length < length)
+        out += Math.floor(next() * 0x100000000)
+          .toString(16)
+          .padStart(8, '0');
       return out.slice(0, length);
     },
   };

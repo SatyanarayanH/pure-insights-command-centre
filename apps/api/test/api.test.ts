@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { ReportDetailSchema } from '@picc/contracts';
 import request from 'supertest';
-import { ADMIN, API, createTestContext, FINOPS, OWNER, type TestContext, VIEWER } from './helpers.js';
+import {
+  ADMIN,
+  API,
+  createTestContext,
+  FINOPS,
+  OWNER,
+  type TestContext,
+  VIEWER,
+} from './helpers.js';
 
 let ctx: TestContext;
 let admin: string;
@@ -34,8 +42,12 @@ describe('authentication', () => {
   });
 
   it('gives the same answer for a wrong password and an unknown account', async () => {
-    const wrong = await request(ctx.app).post(`${API}/auth/login`).send({ email: ADMIN, password: 'nope-nope-nope' });
-    const unknown = await request(ctx.app).post(`${API}/auth/login`).send({ email: 'ghost@company.com', password: 'nope-nope-nope' });
+    const wrong = await request(ctx.app)
+      .post(`${API}/auth/login`)
+      .send({ email: ADMIN, password: 'nope-nope-nope' });
+    const unknown = await request(ctx.app)
+      .post(`${API}/auth/login`)
+      .send({ email: 'ghost@company.com', password: 'nope-nope-nope' });
     assert.equal(wrong.status, 401);
     assert.equal(unknown.status, 401);
     assert.equal(wrong.body.detail, unknown.body.detail);
@@ -43,7 +55,9 @@ describe('authentication', () => {
 
   it('sets the refresh token as an httpOnly, SameSite=Strict cookie scoped to the auth path', async () => {
     const res = await request(ctx.app).post(`${API}/auth/demo-login`).send({ email: VIEWER });
-    const raw = (res.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('picc_refresh='))!;
+    const raw = (res.headers['set-cookie'] as unknown as string[]).find((c) =>
+      c.startsWith('picc_refresh='),
+    )!;
     assert.match(raw, /HttpOnly/i);
     assert.match(raw, /SameSite=Strict/i);
     assert.match(raw, /Path=\/api\/v1\/auth/);
@@ -60,15 +74,27 @@ describe('authentication', () => {
     assert.notEqual(second, first);
 
     // An attacker replays the stolen first token: refused, and the whole family is revoked.
-    assert.equal((await request(ctx.app).post(`${API}/auth/refresh`).set('cookie', first)).status, 401);
-    assert.equal((await request(ctx.app).post(`${API}/auth/refresh`).set('cookie', second)).status, 401);
+    assert.equal(
+      (await request(ctx.app).post(`${API}/auth/refresh`).set('cookie', first)).status,
+      401,
+    );
+    assert.equal(
+      (await request(ctx.app).post(`${API}/auth/refresh`).set('cookie', second)).status,
+      401,
+    );
   });
 
   it('ends the session on logout', async () => {
     const login = await request(ctx.app).post(`${API}/auth/demo-login`).send({ email: VIEWER });
     const cookie = cookieOf(login);
-    assert.equal((await request(ctx.app).post(`${API}/auth/logout`).set('cookie', cookie)).status, 200);
-    assert.equal((await request(ctx.app).post(`${API}/auth/refresh`).set('cookie', cookie)).status, 401);
+    assert.equal(
+      (await request(ctx.app).post(`${API}/auth/logout`).set('cookie', cookie)).status,
+      200,
+    );
+    assert.equal(
+      (await request(ctx.app).post(`${API}/auth/refresh`).set('cookie', cookie)).status,
+      401,
+    );
   });
 
   it('rejects a tampered or expired access token', async () => {
@@ -89,7 +115,10 @@ describe('authentication', () => {
     try {
       const res = await request(strict.app).post(`${API}/auth/demo-login`).send({ email: ADMIN });
       assert.equal(res.status, 403);
-      assert.deepEqual((await request(strict.app).get(`${API}/auth/config`)).body, { demoMode: false, personas: [] });
+      assert.deepEqual((await request(strict.app).get(`${API}/auth/config`)).body, {
+        demoMode: false,
+        personas: [],
+      });
     } finally {
       strict.close();
     }
@@ -100,9 +129,12 @@ describe('error contract', () => {
   it('returns RFC 9457 problem details with field-level errors and a request id', async () => {
     const res = await ctx.get('/reports?pageSize=0&sort=nope', admin);
     assert.equal(res.status, 400);
-    assert.match(res.headers['content-type'], /application\/problem\+json/);
+    assert.match(String(res.headers['content-type']), /application\/problem\+json/);
     assert.equal(res.body.code, 'validation_failed');
-    assert.deepEqual(res.body.errors.map((e: { path: string }) => e.path).sort(), ['query.pageSize', 'query.sort']);
+    assert.deepEqual(res.body.errors.map((e: { path: string }) => e.path).sort(), [
+      'query.pageSize',
+      'query.sort',
+    ]);
     assert.equal(res.body.requestId, res.headers['x-request-id']);
   });
 
@@ -131,11 +163,20 @@ describe('reports', () => {
 
     const orphaned = await ctx.get('/reports?orphaned=true&pageSize=500', admin);
     assert.equal(orphaned.body.total, 14);
-    assert.ok(orphaned.body.items.every((r: { isOrphaned: boolean; ownerEmail: null }) => r.isOrphaned && r.ownerEmail === null));
+    assert.ok(
+      orphaned.body.items.every(
+        (r: { isOrphaned: boolean; ownerEmail: null }) => r.isOrphaned && r.ownerEmail === null,
+      ),
+    );
 
     const costly = await ctx.get('/reports?sort=totalCostUsd&order=desc&pageSize=10', admin);
-    const costs = costly.body.items.map((r: { cost: { totalCostUsd: number } }) => r.cost.totalCostUsd);
-    assert.deepEqual(costs, [...costs].sort((a, b) => b - a));
+    const costs = costly.body.items.map(
+      (r: { cost: { totalCostUsd: number } }) => r.cost.totalCostUsd,
+    );
+    assert.deepEqual(
+      costs,
+      [...costs].sort((a, b) => b - a),
+    );
 
     const page2 = await ctx.get('/reports?page=2&pageSize=30', admin);
     assert.equal(page2.body.items.length, 30);
@@ -149,7 +190,11 @@ describe('reports', () => {
     assert.equal(detail.history.length, 20);
     assert.equal(detail.ownership.history.length, 20);
     assert.equal(detail.history[0]!.periodLabel, 'P01');
-    assert.equal(detail.history[0]!.isOrphaned, true, 'RPT_203 has owner "nan" in the first period');
+    assert.equal(
+      detail.history[0]!.isOrphaned,
+      true,
+      'RPT_203 has owner "nan" in the first period',
+    );
     assert.equal(detail.ownership.distinctOwners, 9, 'nine named owners in 20 periods');
   });
 
@@ -159,7 +204,10 @@ describe('reports', () => {
     assert.equal(body.reports.orphaned, 14);
     assert.equal(body.trend.length, 20);
     assert.equal(body.latency.thresholdSec, 15);
-    assert.equal(body.latency.distribution.reduce((a: number, b: { reports: number }) => a + b.reports, 0), 100);
+    assert.equal(
+      body.latency.distribution.reduce((a: number, b: { reports: number }) => a + b.reports, 0),
+      100,
+    );
     assert.ok(body.cost.totalCostUsd > 0);
     assert.equal(body.asOf.periodLabel, 'P20');
     assert.match(body.asOf.periodEnd, /^2026-10-01/);
@@ -182,7 +230,10 @@ describe('orphan remediation', () => {
     const owner = await ctx.login(OWNER);
     assert.equal((await ctx.get(`/reports/${target.reportId}`, owner)).status, 404);
 
-    const res = await ctx.post(`/reports/${target.reportId}/owner`, admin, { ownerEmail: OWNER, note: 'Confirmed in standup' });
+    const res = await ctx.post(`/reports/${target.reportId}/owner`, admin, {
+      ownerEmail: OWNER,
+      note: 'Confirmed in standup',
+    });
     assert.equal(res.status, 201);
     assert.equal(res.body.ownerEmail, OWNER);
     assert.equal(res.body.previousOwnerEmail, null);
@@ -195,7 +246,12 @@ describe('orphan remediation', () => {
     assert.equal(detail.ownerEmail, OWNER);
     assert.equal(detail.ownerSource, 'assigned');
     assert.equal(detail.isOrphaned, false);
-    assert.ok(detail.alerts.every((a: { routing: { kind: string; escalated: boolean } }) => a.routing.kind === 'owner' && !a.routing.escalated));
+    assert.ok(
+      detail.alerts.every(
+        (a: { routing: { kind: string; escalated: boolean } }) =>
+          a.routing.kind === 'owner' && !a.routing.escalated,
+      ),
+    );
 
     const alert = (await ctx.get(`/alerts/${detail.alerts[0].id}`, admin)).body;
     assert.equal(alert.timeline.at(-1).type, 'rerouted');
@@ -212,7 +268,10 @@ describe('orphan remediation', () => {
     assert.equal(notOwner.status, 400);
     assert.equal(notOwner.body.errors[0].path, 'ownerEmail');
     await ctx.post(`/reports/${orphan}/owner`, admin, { ownerEmail: OWNER });
-    assert.equal((await ctx.post(`/reports/${orphan}/owner`, admin, { ownerEmail: OWNER })).status, 409);
+    assert.equal(
+      (await ctx.post(`/reports/${orphan}/owner`, admin, { ownerEmail: OWNER })).status,
+      409,
+    );
   });
 });
 
@@ -232,19 +291,36 @@ describe('telemetry and alerting through the API', () => {
     });
     assert.equal(res.status, 202);
     assert.equal(res.body.accepted, 1);
-    assert.deepEqual(res.body.rejected.map((r: { index: number }) => r.index), [1, 2, 3]);
+    assert.deepEqual(
+      res.body.rejected.map((r: { index: number }) => r.index),
+      [1, 2, 3],
+    );
     assert.match(res.body.rejected[0].reason, /Unknown report/);
   });
 
   it('opens a latency alert above 15 s, not at exactly 15 s', async () => {
     // Two healthy observations clear whatever the backfill left open.
-    await ctx.post('/telemetry', admin, { events: [{ reportId: REPORT, loadTimeSec: 2 }, { reportId: REPORT, loadTimeSec: 2 }, { reportId: REPORT, loadTimeSec: 2 }, { reportId: REPORT, loadTimeSec: 2 }, { reportId: REPORT, loadTimeSec: 2 }] });
+    await ctx.post('/telemetry', admin, {
+      events: [
+        { reportId: REPORT, loadTimeSec: 2 },
+        { reportId: REPORT, loadTimeSec: 2 },
+        { reportId: REPORT, loadTimeSec: 2 },
+        { reportId: REPORT, loadTimeSec: 2 },
+        { reportId: REPORT, loadTimeSec: 2 },
+      ],
+    });
     assert.equal((await alertsFor('latency')).length, 0);
 
     await ctx.post('/telemetry', admin, { events: [{ reportId: REPORT, loadTimeSec: 15 }] });
-    assert.equal((await alertsFor('latency')).length, 0, 'exactly 15 s does not exceed the threshold');
+    assert.equal(
+      (await alertsFor('latency')).length,
+      0,
+      'exactly 15 s does not exceed the threshold',
+    );
 
-    const res = await ctx.post('/telemetry', admin, { events: [{ reportId: REPORT, loadTimeSec: 15.5 }] });
+    const res = await ctx.post('/telemetry', admin, {
+      events: [{ reportId: REPORT, loadTimeSec: 15.5 }],
+    });
     assert.equal(res.body.alertsFired, 1);
     const [alert] = await alertsFor('latency');
     assert.equal(alert.severity, 'warning');
@@ -253,10 +329,19 @@ describe('telemetry and alerting through the API', () => {
   });
 
   it('opens a refresh alert on failure and escalates it on the third in a row', async () => {
-    await ctx.post('/telemetry', admin, { events: [{ reportId: REPORT, refreshStatus: 'SUCCESS' }] });
-    await ctx.post('/telemetry', admin, { events: [{ reportId: REPORT, refreshStatus: 'FAILED' }] });
+    await ctx.post('/telemetry', admin, {
+      events: [{ reportId: REPORT, refreshStatus: 'SUCCESS' }],
+    });
+    await ctx.post('/telemetry', admin, {
+      events: [{ reportId: REPORT, refreshStatus: 'FAILED' }],
+    });
     assert.equal((await alertsFor('refresh_failure'))[0].severity, 'high');
-    await ctx.post('/telemetry', admin, { events: [{ reportId: REPORT, refreshStatus: 'TIMED_OUT' }, { reportId: REPORT, refreshStatus: 'FAILED' }] });
+    await ctx.post('/telemetry', admin, {
+      events: [
+        { reportId: REPORT, refreshStatus: 'TIMED_OUT' },
+        { reportId: REPORT, refreshStatus: 'FAILED' },
+      ],
+    });
     const [alert] = await alertsFor('refresh_failure');
     assert.equal(alert.severity, 'critical');
     assert.equal(alert.value, 3);
@@ -264,14 +349,25 @@ describe('telemetry and alerting through the API', () => {
   });
 
   it('injects incidents through the same pipeline and recovers from them', async () => {
-    const spike = await ctx.post('/admin/incidents', admin, { reportId: 'RPT_241', kind: 'latency_spike', loadTimeSec: 51 });
+    const spike = await ctx.post('/admin/incidents', admin, {
+      reportId: 'RPT_241',
+      kind: 'latency_spike',
+      loadTimeSec: 51,
+    });
     assert.equal(spike.status, 202);
-    const open = (await ctx.get('/alerts?reportId=RPT_241&ruleId=latency&status=active', admin)).body.items;
+    const open = (await ctx.get('/alerts?reportId=RPT_241&ruleId=latency&status=active', admin))
+      .body.items;
     assert.equal(open[0].severity, 'critical');
 
-    const recovery = await ctx.post('/admin/incidents', admin, { reportId: 'RPT_241', kind: 'recovery' });
+    const recovery = await ctx.post('/admin/incidents', admin, {
+      reportId: 'RPT_241',
+      kind: 'recovery',
+    });
     assert.ok(recovery.body.alertsResolved >= 1);
-    assert.equal((await ctx.get('/alerts?reportId=RPT_241&ruleId=latency&status=active', admin)).body.total, 0);
+    assert.equal(
+      (await ctx.get('/alerts?reportId=RPT_241&ruleId=latency&status=active', admin)).body.total,
+      0,
+    );
   });
 
   it('lets an admin change a threshold, audits it, and rejects inconsistent tiers', async () => {
@@ -300,14 +396,23 @@ describe('alert history from the dataset', () => {
       // in the latest period must not close an alert that a FAILED opened the period before.
       const facts = fresh.container.snapshot.facts;
       const lastKnownFailed = fresh.container.snapshot.dim.filter((d) => {
-        const known = facts.filter((f) => f.report_id === d.report_id && !f.is_refresh_unknown).at(-1);
+        const known = facts
+          .filter((f) => f.report_id === d.report_id && !f.is_refresh_unknown)
+          .at(-1);
         return known?.is_refresh_failure === true;
       }).length;
-      assert.equal(latest.filter((f) => f.is_refresh_failure).length, 25, '16 FAILED + 9 TIMED_OUT in the latest period');
+      assert.equal(
+        latest.filter((f) => f.is_refresh_failure).length,
+        25,
+        '16 FAILED + 9 TIMED_OUT in the latest period',
+      );
       assert.equal(stats.byRule.refresh_failure, lastKnownFailed);
       assert.equal(lastKnownFailed, 26, 'one more is UNKNOWN now but failed before that');
       assert.equal(stats.byRule.refresh_unknown, latest.filter((f) => f.is_refresh_unknown).length);
-      assert.equal(stats.byRule.invalid_telemetry, latest.filter((f) => f.is_cost_quarantined).length);
+      assert.equal(
+        stats.byRule.invalid_telemetry,
+        latest.filter((f) => f.is_cost_quarantined).length,
+      );
       // Latency needs two healthy periods to clear, so a few alerts outlive the latest breach.
       const breaching = latest.filter((f) => f.is_latency_breach).length;
       assert.equal(breaching, 76);
@@ -316,12 +421,18 @@ describe('alert history from the dataset', () => {
       assert.equal(stats.acknowledged, 0);
 
       const open = (await fresh.get('/alerts?pageSize=500', token)).body;
-      const orphaned = new Set(fresh.container.snapshot.dim.filter((d) => d.is_orphaned).map((d) => d.report_id));
-      const onOrphans = open.items.filter((a: { reportId: string }) => orphaned.has(a.reportId)).length;
+      const orphaned = new Set(
+        fresh.container.snapshot.dim.filter((d) => d.is_orphaned).map((d) => d.report_id),
+      );
+      const onOrphans = open.items.filter((a: { reportId: string }) =>
+        orphaned.has(a.reportId),
+      ).length;
       assert.equal(stats.escalated, onOrphans, 'open alerts on reports nobody owns');
       const escalated = (await fresh.get('/alerts?escalated=true&pageSize=500', token)).body;
       assert.equal(escalated.total, onOrphans);
-      assert.ok(escalated.items.every((a: { routing: { kind: string } }) => a.routing.kind === 'admins'));
+      assert.ok(
+        escalated.items.every((a: { routing: { kind: string } }) => a.routing.kind === 'admins'),
+      );
       assert.ok(open.items.every((a: { source: string }) => a.source === 'backfill'));
     } finally {
       fresh.close();
@@ -338,10 +449,26 @@ describe('cost and data quality', () => {
     const p = body.platform;
     assert.equal(p.quarantine.reportPeriods, 24);
     assert.equal(Math.round(p.quarantine.creditsReported * 100) / 100, -161.04);
-    assert.ok(p.quarantine.creditsImputed > 10000, 'the hidden cost is large; filtering alone would under-report');
+    assert.ok(
+      p.quarantine.creditsImputed > 10000,
+      'the hidden cost is large; filtering alone would under-report',
+    );
     assert.ok(p.idleShare > 0.1 && p.idleShare < 0.2);
-    assert.ok(Math.abs(p.creditsMeteredCompute - (p.creditsAttributedToReports + p.creditsIdle + p.creditsUnattributed + p.creditsQuarantinedImputed)) / p.creditsMeteredCompute < 0.01);
-    assert.ok(p.correlations.every((c: { pearsonR: number }) => Math.abs(c.pearsonR) < 0.05), 'usage and cost are unrelated in this dataset');
+    assert.ok(
+      Math.abs(
+        p.creditsMeteredCompute -
+          (p.creditsAttributedToReports +
+            p.creditsIdle +
+            p.creditsUnattributed +
+            p.creditsQuarantinedImputed),
+      ) /
+        p.creditsMeteredCompute <
+        0.01,
+    );
+    assert.ok(
+      p.correlations.every((c: { pearsonR: number }) => Math.abs(c.pearsonR) < 0.05),
+      'usage and cost are unrelated in this dataset',
+    );
   });
 
   it('prices each report per active view and leaves zero-view periods undefined', async () => {
@@ -365,12 +492,18 @@ describe('cost and data quality', () => {
     const unowned = items.find((i: { isUnowned: boolean }) => i.isUnowned);
     assert.equal(unowned.ownerKey, '(unowned)');
     assert.equal(unowned.reportPeriods, 245);
-    assert.ok(Math.abs(items.reduce((a: number, i: { shareOfTotalCost: number }) => a + i.shareOfTotalCost, 0) - 1) < 1e-9);
+    assert.ok(
+      Math.abs(
+        items.reduce((a: number, i: { shareOfTotalCost: number }) => a + i.shareOfTotalCost, 0) - 1,
+      ) < 1e-9,
+    );
   });
 
   it('lists anomalies with a dollar figure', async () => {
     const { body } = await ctx.get('/costs/anomalies', finops);
-    const types = Object.fromEntries(body.byType.map((t: { anomalyType: string; count: number }) => [t.anomalyType, t.count]));
+    const types = Object.fromEntries(
+      body.byType.map((t: { anomalyType: string; count: number }) => [t.anomalyType, t.count]),
+    );
     assert.equal(types.QUARANTINED_CREDITS, 24);
     assert.equal(types.ZERO_VIEW_SPEND, 4);
     assert.equal(types.ZOMBIE_REPORT, 5);
@@ -379,15 +512,31 @@ describe('cost and data quality', () => {
   it('exposes data-quality rules, findings traceable to a source line, and the quarantine', async () => {
     const summary = (await ctx.get('/dq/summary', finops)).body;
     assert.equal(summary.rowsLanded, 2000);
-    assert.equal(summary.rules.filter((r: { inBrief: boolean }) => !r.inBrief && r.rowsAffected > 0).length, 5, 'defects the brief does not list');
+    assert.equal(
+      summary.rules.filter(
+        (r: { inBrief: boolean; rowsAffected: number }) => !r.inBrief && r.rowsAffected > 0,
+      ).length,
+      5,
+      'defects the brief does not list',
+    );
     assert.ok(summary.reconciliation.every((c: { status: string }) => c.status === 'PASS'));
 
     const findings = (await ctx.get('/dq/findings?ruleId=DQ-02&pageSize=100', finops)).body;
     assert.equal(findings.total, 24);
-    assert.ok(findings.items.every((f: { observedValue: string; rowSeq: number }) => Number(f.observedValue) < 0 && f.rowSeq >= 1 && f.rowSeq <= 2000));
+    assert.ok(
+      findings.items.every(
+        (f: { observedValue: string; rowSeq: number }) =>
+          Number(f.observedValue) < 0 && f.rowSeq >= 1 && f.rowSeq <= 2000,
+      ),
+    );
 
     const quarantine = (await ctx.get('/dq/quarantine', finops)).body.items;
     assert.equal(quarantine.length, 24);
-    assert.ok(quarantine.every((q: { creditsReported: number; creditsImputed: number }) => q.creditsReported < 0 && q.creditsImputed > 0));
+    assert.ok(
+      quarantine.every(
+        (q: { creditsReported: number; creditsImputed: number }) =>
+          q.creditsReported < 0 && q.creditsImputed > 0,
+      ),
+    );
   });
 });

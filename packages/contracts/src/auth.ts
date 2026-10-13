@@ -25,7 +25,9 @@ export const DemoLoginRequestSchema = z.object({
 
 export const AuthResponseSchema = z
   .object({
-    accessToken: z.string().meta({ description: 'Short-lived JWT. Send as `Authorization: Bearer <token>`.' }),
+    accessToken: z
+      .string()
+      .meta({ description: 'Short-lived JWT. Send as `Authorization: Bearer <token>`.' }),
     expiresIn: z.number().int().meta({ description: 'Seconds until the access token expires.' }),
     user: UserSchema,
   })

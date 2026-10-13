@@ -1,4 +1,10 @@
-import type { AlertRuleId, AlertSource, AlertStatus, RefreshStatus, Severity } from '@picc/contracts';
+import type {
+  AlertRuleId,
+  AlertSource,
+  AlertStatus,
+  RefreshStatus,
+  Severity,
+} from '@picc/contracts';
 
 /** An alert as stored. The API shape (`Alert` in the contracts) adds names and routing. */
 export interface AlertRecord {
@@ -50,7 +56,14 @@ export interface Evaluation {
   message: string;
 }
 
-export type AlertChange = 'occurrence' | 'escalated' | 'deescalated' | 'acknowledged' | 'snoozed' | 'rerouted' | 'reopened';
+export type AlertChange =
+  | 'occurrence'
+  | 'escalated'
+  | 'deescalated'
+  | 'acknowledged'
+  | 'snoozed'
+  | 'rerouted'
+  | 'reopened';
 
 export type EngineEvent =
   | { type: 'fired'; alert: AlertRecord }

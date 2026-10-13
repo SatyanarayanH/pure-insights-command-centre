@@ -33,13 +33,24 @@ const ConnectionReadyData = z.object({
   heartbeatIntervalMs: z.number().int(),
   latestEventId: z.number().int(),
   resumedFrom: z.number().int().nullable(),
-  replayed: z.number().int().meta({ description: 'Missed events about to be delivered after this message.' }),
+  replayed: z
+    .number()
+    .int()
+    .meta({ description: 'Missed events about to be delivered after this message.' }),
 });
 
 const AlertFiredData = z.object({ alert: AlertSchema });
 const AlertUpdatedData = z.object({
   alert: AlertSchema,
-  change: z.enum(['occurrence', 'escalated', 'deescalated', 'acknowledged', 'snoozed', 'rerouted', 'reopened']),
+  change: z.enum([
+    'occurrence',
+    'escalated',
+    'deescalated',
+    'acknowledged',
+    'snoozed',
+    'rerouted',
+    'reopened',
+  ]),
 });
 const AlertResolvedData = z.object({ alert: AlertSchema });
 
@@ -48,7 +59,9 @@ const TelemetryObservedData = z.object({
   observedAt: IsoDateTimeSchema,
   loadTimeSec: z.number().nullable(),
   refreshStatus: RefreshStatusSchema.nullable(),
-  breach: z.boolean().meta({ description: 'True when this observation violates at least one alert rule.' }),
+  breach: z
+    .boolean()
+    .meta({ description: 'True when this observation violates at least one alert rule.' }),
   source: z.string(),
 });
 
@@ -80,7 +93,8 @@ export const SERVER_EVENT_DEFINITIONS = {
     data: ConnectionReadyData,
     topic: null,
     summary: 'Handshake accepted',
-    description: 'First message on every connection. States who the server thinks you are and how many missed events follow.',
+    description:
+      'First message on every connection. States who the server thinks you are and how many missed events follow.',
   },
   'alert.fired': {
     data: AlertFiredData,
@@ -100,13 +114,15 @@ export const SERVER_EVENT_DEFINITIONS = {
     data: AlertResolvedData,
     topic: 'alerts',
     summary: 'An alert cleared',
-    description: 'The condition stayed healthy for the rule\'s `resolveAfter` consecutive observations.',
+    description:
+      "The condition stayed healthy for the rule's `resolveAfter` consecutive observations.",
   },
   'telemetry.observed': {
     data: TelemetryObservedData,
     topic: 'telemetry',
     summary: 'One telemetry observation was ingested',
-    description: 'Raw feed for live tickers. High volume; clients must opt in to the `telemetry` topic.',
+    description:
+      'Raw feed for live tickers. High volume; clients must opt in to the `telemetry` topic.',
   },
   'report.owner_changed': {
     data: ReportOwnerChangedData,
@@ -137,20 +153,24 @@ export const SERVER_EVENT_DEFINITIONS = {
     data: PongData,
     topic: null,
     summary: 'Heartbeat reply',
-    description: 'Reply to a client `ping`. Echoes the client timestamp so the client can measure round-trip time.',
+    description:
+      'Reply to a client `ping`. Echoes the client timestamp so the client can measure round-trip time.',
   },
   error: {
     data: ErrorData,
     topic: null,
     summary: 'Protocol error',
-    description: 'A client message was malformed or not allowed. The connection stays open unless the code is `unauthorized`.',
+    description:
+      'A client message was malformed or not allowed. The connection stays open unless the code is `unauthorized`.',
   },
 } as const;
 
 export type ServerEventType = keyof typeof SERVER_EVENT_DEFINITIONS;
 export const SERVER_EVENT_TYPES = Object.keys(SERVER_EVENT_DEFINITIONS) as ServerEventType[];
 
-export type ServerEventData<T extends ServerEventType> = z.infer<(typeof SERVER_EVENT_DEFINITIONS)[T]['data']>;
+export type ServerEventData<T extends ServerEventType> = z.infer<
+  (typeof SERVER_EVENT_DEFINITIONS)[T]['data']
+>;
 
 export interface ServerEvent<T extends ServerEventType = ServerEventType> {
   /** Protocol version. */
@@ -188,12 +208,14 @@ export const CLIENT_MESSAGE_DEFINITIONS = {
   ping: {
     schema: z.object({ type: z.literal('ping'), ts: z.number().optional() }),
     summary: 'Heartbeat',
-    description: 'Send at least every `heartbeatIntervalMs`. The server closes connections that stay silent for twice that.',
+    description:
+      'Send at least every `heartbeatIntervalMs`. The server closes connections that stay silent for twice that.',
   },
   subscribe: {
     schema: z.object({ type: z.literal('subscribe'), topics: z.array(TopicSchema).min(1) }),
     summary: 'Add topics',
-    description: 'Adds topics to the connection. Row-level security still applies to everything delivered.',
+    description:
+      'Adds topics to the connection. Row-level security still applies to everything delivered.',
   },
   unsubscribe: {
     schema: z.object({ type: z.literal('unsubscribe'), topics: z.array(TopicSchema).min(1) }),

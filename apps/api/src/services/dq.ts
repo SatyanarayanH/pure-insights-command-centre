@@ -50,7 +50,9 @@ export class DqService {
     pageSize: number;
   } {
     const rows = this.snapshot.dqFindings.filter(
-      (f) => (!query.ruleId || f.rule_id === query.ruleId) && (!query.reportId || f.report_id === query.reportId),
+      (f) =>
+        (!query.ruleId || f.rule_id === query.ruleId) &&
+        (!query.reportId || f.report_id === query.reportId),
     );
     const start = (query.page - 1) * query.pageSize;
     return {

@@ -14,7 +14,12 @@ import { can, type Principal } from '../auth/principal.js';
 import { conflict, forbidden, notFound } from '../http/errors.js';
 import type { AuditLog } from '../opsdb/repositories.js';
 import type { EventBus } from '../realtime/bus.js';
-import { type AlertPayload, type PresenterContext, presentAlert, presentEmail } from '../services/presenters.js';
+import {
+  type AlertPayload,
+  type PresenterContext,
+  presentAlert,
+  presentEmail,
+} from '../services/presenters.js';
 import { FLAPPING_REOPEN_COUNT } from './engine.js';
 import type { AlertRepository, AlertRuleRepository } from './repository.js';
 import type { AlertRecord, EngineEvent } from './types.js';
@@ -37,12 +42,18 @@ export class AlertService {
   /** Puts engine output on the bus. One bus event per engine event, in order. */
   publish(events: readonly EngineEvent[]): void {
     for (const event of events) {
-      const payload: AlertPayload = { alert: { ...event.alert }, ...(event.type === 'updated' ? { change: event.change } : {}) };
+      const payload: AlertPayload = {
+        alert: { ...event.alert },
+        ...(event.type === 'updated' ? { change: event.change } : {}),
+      };
       this.bus.publish(`alert.${event.type}`, 'alerts', payload, event.alert.reportId);
     }
   }
 
-  list(principal: Principal, query: AlertListQuery): { items: Alert[]; total: number; page: number; pageSize: number } {
+  list(
+    principal: Principal,
+    query: AlertListQuery,
+  ): { items: Alert[]; total: number; page: number; pageSize: number } {
     const statuses: readonly AlertStatus[] | undefined =
       query.status === 'all'
         ? undefined
@@ -62,7 +73,9 @@ export class AlertService {
     }
     const start = (query.page - 1) * query.pageSize;
     return {
-      items: records.slice(start, start + query.pageSize).map((r) => presentAlert(r, principal, this.ctx)),
+      items: records
+        .slice(start, start + query.pageSize)
+        .map((r) => presentAlert(r, principal, this.ctx)),
       total: records.length,
       page: query.page,
       pageSize: query.pageSize,
@@ -93,17 +106,31 @@ export class AlertService {
     };
   }
 
-  acknowledge(principal: Principal, id: string, note: string | undefined, requestId: string | null): Alert {
+  acknowledge(
+    principal: Principal,
+    id: string,
+    note: string | undefined,
+    requestId: string | null,
+  ): Alert {
     const record = this.visible(principal, id);
     if (record.status === 'resolved') throw conflict('The alert has already resolved.');
-    if (record.status === 'acknowledged') throw conflict(`Already acknowledged by ${record.acknowledgedBy}.`);
+    if (record.status === 'acknowledged')
+      throw conflict(`Already acknowledged by ${record.acknowledgedBy}.`);
     const at = this.now().toISOString();
     record.status = 'acknowledged';
     record.acknowledgedBy = principal.email;
     record.acknowledgedAt = at;
     record.ackNote = note ?? null;
     this.alerts.update(record);
-    this.alerts.addEvent(id, 'acknowledged', at, principal.email, record.severity, record.value, note ?? null);
+    this.alerts.addEvent(
+      id,
+      'acknowledged',
+      at,
+      principal.email,
+      record.severity,
+      record.value,
+      note ?? null,
+    );
     this.audit.record({
       actor: principal.email,
       actorRole: principal.role,
@@ -123,7 +150,15 @@ export class AlertService {
     const at = this.now();
     record.snoozedUntil = new Date(at.getTime() + minutes * 60_000).toISOString();
     this.alerts.update(record);
-    this.alerts.addEvent(id, 'snoozed', at.toISOString(), principal.email, record.severity, record.value, `${minutes} minutes`);
+    this.alerts.addEvent(
+      id,
+      'snoozed',
+      at.toISOString(),
+      principal.email,
+      record.severity,
+      record.value,
+      `${minutes} minutes`,
+    );
     this.audit.record({
       actor: principal.email,
       actorRole: principal.role,
@@ -144,7 +179,9 @@ export class AlertService {
     for (const record of open) {
       this.alerts.addEvent(record.id, 'rerouted', at, actor, record.severity, record.value, detail);
     }
-    this.publish(open.map((alert) => ({ type: 'updated' as const, change: 'rerouted' as const, alert })));
+    this.publish(
+      open.map((alert) => ({ type: 'updated' as const, change: 'rerouted' as const, alert })),
+    );
   }
 
   stats(principal: Principal): AlertStats {
@@ -186,7 +223,8 @@ export class AlertService {
       if (!current) byReport.set(alert.reportId, { count: 1, highest: alert.severity });
       else {
         current.count += 1;
-        if (SEVERITY_RANK[alert.severity] > SEVERITY_RANK[current.highest]) current.highest = alert.severity;
+        if (SEVERITY_RANK[alert.severity] > SEVERITY_RANK[current.highest])
+          current.highest = alert.severity;
       }
     }
     return byReport;
@@ -196,7 +234,12 @@ export class AlertService {
     return this.rules.list();
   }
 
-  updateRule(principal: Principal, id: AlertRuleId, patch: UpdateAlertRuleRequest, requestId: string | null): AlertRule {
+  updateRule(
+    principal: Principal,
+    id: AlertRuleId,
+    patch: UpdateAlertRuleRequest,
+    requestId: string | null,
+  ): AlertRule {
     if (!can(principal, 'alert-rules:write')) throw forbidden();
     const before = this.rules.get(id);
     if (!before) throw notFound('Alert rule');

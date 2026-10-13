@@ -80,7 +80,9 @@ export const CostSummarySchema = z
         ),
       })
       .nullable()
-      .meta({ description: 'Whole-platform reconciliation. Null for callers scoped to their own reports.' }),
+      .meta({
+        description: 'Whole-platform reconciliation. Null for callers scoped to their own reports.',
+      }),
   })
   .meta({ id: 'CostSummary' });
 export type CostSummary = z.infer<typeof CostSummarySchema>;
@@ -144,7 +146,9 @@ export const ChargebackRowSchema = z
   .meta({ id: 'ChargebackRow' });
 export type ChargebackRow = z.infer<typeof ChargebackRowSchema>;
 
-export const ChargebackSchema = z.object({ items: z.array(ChargebackRowSchema) }).meta({ id: 'Chargeback' });
+export const ChargebackSchema = z
+  .object({ items: z.array(ChargebackRowSchema) })
+  .meta({ id: 'Chargeback' });
 export type Chargeback = z.infer<typeof ChargebackSchema>;
 
 export const CostAnomalySchema = z
@@ -172,7 +176,11 @@ export const CostAnomaliesSchema = z
   .object({
     items: z.array(CostAnomalySchema),
     byType: z.array(
-      z.object({ anomalyType: z.string(), count: z.number().int(), estMonthlyImpactUsd: z.number() }),
+      z.object({
+        anomalyType: z.string(),
+        count: z.number().int(),
+        estMonthlyImpactUsd: z.number(),
+      }),
     ),
   })
   .meta({ id: 'CostAnomalies' });

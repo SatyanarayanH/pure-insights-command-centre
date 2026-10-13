@@ -1,0 +1,6252 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Pure Insights Command Centre API",
+    "version": "1.0.0",
+    "description": "REST API for the Pure Insights Command Centre: report health, ownership, alerting and Snowflake cost attribution.\n\nThis document is generated from the route registry in `apps/api/src/http/routes.ts`. Each operation is the same object that mounts the handler, validates the request and enforces the permission, so the specification cannot describe an endpoint that does not exist or omit one that does.\n\nReal-time events are delivered over WebSocket (`/ws`) and Server-Sent Events (`/api/v1/stream`); see the AsyncAPI document.\n\nErrors use RFC 9457 `application/problem+json`."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Sign-in, session refresh and the current user."
+    },
+    {
+      "name": "Real-time",
+      "description": "Tickets for the WebSocket and SSE streams."
+    },
+    {
+      "name": "Reports",
+      "description": "System health and the report catalogue."
+    },
+    {
+      "name": "Ownership",
+      "description": "Orphaned reports and owner assignment."
+    },
+    {
+      "name": "Alerts",
+      "description": "Alert lifecycle and rules."
+    },
+    {
+      "name": "Telemetry",
+      "description": "Ingest endpoint for the portal."
+    },
+    {
+      "name": "Cost",
+      "description": "Snowflake credit attribution, unit economics and chargeback."
+    },
+    {
+      "name": "Data quality",
+      "description": "Rules, findings, quarantine and reconciliation."
+    },
+    {
+      "name": "Admin",
+      "description": "Users, audit log, simulator and incident injection."
+    },
+    {
+      "name": "System",
+      "description": "Service status."
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/config": {
+      "get": {
+        "operationId": "getAuthConfig",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign-in options",
+        "description": "Tells the login screen whether demo mode is on and, if so, which personas can be used for one-click sign-in.\n\nPublic.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "demoMode": {
+                      "type": "boolean"
+                    },
+                    "personas": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Persona"
+                      }
+                    }
+                  },
+                  "required": [
+                    "demoMode",
+                    "personas"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign in with email and password",
+        "description": "Returns a short-lived access token and sets the rotating refresh token as an httpOnly cookie.\n\nPublic.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "email",
+                  "password"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/demo-login": {
+      "post": {
+        "operationId": "demoLogin",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "One-click sign-in as a demo persona",
+        "description": "Only available when the server runs with DEMO_MODE=true. Returns 403 otherwise.\n\nPublic.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "refreshSession",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Exchange the refresh cookie for a new access token",
+        "description": "Rotates the refresh token. Presenting a token that was already rotated revokes the whole session family.\n\nPublic.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "End the session",
+        "description": "Public.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "getCurrentUser",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "The signed-in user, with role and permissions",
+        "description": "",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/realtime/ticket": {
+      "post": {
+        "operationId": "createRealtimeTicket",
+        "tags": [
+          "Real-time"
+        ],
+        "summary": "Mint a single-use ticket for the WebSocket or SSE stream",
+        "description": "Browsers cannot send an Authorization header when opening a WebSocket or EventSource. Call this with your bearer token, then open the stream with `?ticket=`. The ticket works once and expires in 30 seconds.\n\nRequires permission `alerts:read` (roles: Platform Admin, FinOps Analyst, Report Owner, Viewer).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeTicket"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "alerts:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ]
+      }
+    },
+    "/api/v1/overview": {
+      "get": {
+        "operationId": "getOverview",
+        "tags": [
+          "Reports"
+        ],
+        "summary": "System health at a glance",
+        "description": "Counts, latency distribution, 20-period trend and the reports that need attention first. Cost figures are included only with `costs:read`.\n\nRequires permission `reports:read` (roles: Platform Admin, FinOps Analyst, Report Owner, Viewer).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "reports:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ],
+        "x-row-level-security": true
+      }
+    },
+    "/api/v1/reports": {
+      "get": {
+        "operationId": "listReports",
+        "tags": [
+          "Reports"
+        ],
+        "summary": "List reports with current health, owner and cost",
+        "description": "Requires permission `reports:read` (roles: Platform Admin, FinOps Analyst, Report Owner, Viewer).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Matches report id, name or owner email.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "orphaned",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "refreshStatus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RefreshStatus"
+            }
+          },
+          {
+            "name": "latencySeverity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LatencySeverity"
+            }
+          },
+          {
+            "name": "quadrant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/EfficiencyQuadrant"
+            }
+          },
+          {
+            "name": "hasAlerts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "reportId",
+              "type": "string",
+              "enum": [
+                "reportId",
+                "ownerEmail",
+                "loadTimeSec",
+                "refreshFailureStreak",
+                "monthlyActiveViews",
+                "activeAlerts",
+                "totalCostUsd",
+                "totalCostPerViewUsd"
+              ]
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "asc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ReportSummary"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "reports:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ],
+        "x-row-level-security": true
+      }
+    },
+    "/api/v1/reports/{reportId}": {
+      "get": {
+        "operationId": "getReport",
+        "tags": [
+          "Reports"
+        ],
+        "summary": "One report: 20-period history, ownership trail, open alerts, data-quality findings",
+        "description": "Returns 404 for a report outside the caller's scope, the same as for one that does not exist.\n\nRequires permission `reports:read` (roles: Platform Admin, FinOps Analyst, Report Owner, Viewer).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "description": "Report identifier",
+            "schema": {
+              "type": "string",
+              "pattern": "^RPT_\\d{1,6}$",
+              "example": "RPT_203"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or outside the caller's row-level scope.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "reports:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ],
+        "x-row-level-security": true
+      }
+    },
+    "/api/v1/orphans": {
+      "get": {
+        "operationId": "getOrphanQueue",
+        "tags": [
+          "Ownership"
+        ],
+        "summary": "Reports with no owner, ranked by cost at risk",
+        "description": "Each entry carries a suggested owner taken from the report's own ownership history.\n\nRequires permission `orphans:read` (roles: Platform Admin, FinOps Analyst).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrphanQueue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "orphans:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops"
+        ]
+      }
+    },
+    "/api/v1/reports/{reportId}/owner": {
+      "post": {
+        "operationId": "assignReportOwner",
+        "tags": [
+          "Ownership"
+        ],
+        "summary": "Assign an owner to a report",
+        "description": "Audited. Broadcasts `report.owner_changed` and re-routes the report's open alerts to the new owner.\n\nRequires permission `orphans:assign` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "description": "Report identifier",
+            "schema": {
+              "type": "string",
+              "pattern": "^RPT_\\d{1,6}$",
+              "example": "RPT_203"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerAssignment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or outside the caller's row-level scope.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "orphans:assign",
+        "x-allowed-roles": [
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ownerEmail": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "ownerEmail"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts": {
+      "get": {
+        "operationId": "listAlerts",
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "List alerts, worst first",
+        "description": "Requires permission `alerts:read` (roles: Platform Admin, FinOps Analyst, Report Owner, Viewer).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "active",
+              "type": "string",
+              "enum": [
+                "active",
+                "firing",
+                "acknowledged",
+                "resolved",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Severity"
+            }
+          },
+          {
+            "name": "ruleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AlertRuleId"
+            }
+          },
+          {
+            "name": "reportId",
+            "in": "query",
+            "required": false,
+            "description": "Report identifier",
+            "schema": {
+              "type": "string",
+              "pattern": "^RPT_\\d{1,6}$",
+              "example": "RPT_203"
+            }
+          },
+          {
+            "name": "escalated",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Alert"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "alerts:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ],
+        "x-row-level-security": true
+      }
+    },
+    "/api/v1/alerts/stats": {
+      "get": {
+        "operationId": "getAlertStats",
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Open alert counts by status, severity and rule",
+        "description": "Requires permission `alerts:read` (roles: Platform Admin, FinOps Analyst, Report Owner, Viewer).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "alerts:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ],
+        "x-row-level-security": true
+      }
+    },
+    "/api/v1/alerts/{alertId}": {
+      "get": {
+        "operationId": "getAlert",
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "One alert with its full timeline",
+        "description": "Requires permission `alerts:read` (roles: Platform Admin, FinOps Analyst, Report Owner, Viewer).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alertId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or outside the caller's row-level scope.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "alerts:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ],
+        "x-row-level-security": true
+      }
+    },
+    "/api/v1/alerts/{alertId}/ack": {
+      "post": {
+        "operationId": "acknowledgeAlert",
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Acknowledge an alert",
+        "description": "Marks the alert as owned by the caller. It still resolves on its own once the condition clears.\n\nRequires permission `alerts:ack` (roles: Platform Admin, Report Owner).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alertId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Alert"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or outside the caller's row-level scope.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "alerts:ack",
+        "x-allowed-roles": [
+          "admin",
+          "owner"
+        ],
+        "x-row-level-security": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/{alertId}/snooze": {
+      "post": {
+        "operationId": "snoozeAlert",
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Silence notifications for an alert for a while",
+        "description": "Requires permission `alerts:snooze` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alertId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Alert"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or outside the caller's row-level scope.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "alerts:snooze",
+        "x-allowed-roles": [
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "minutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10080
+                  }
+                },
+                "required": [
+                  "minutes"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alert-rules": {
+      "get": {
+        "operationId": "listAlertRules",
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Alert rules and their thresholds",
+        "description": "Requires permission `alert-rules:read` (roles: Platform Admin, FinOps Analyst).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AlertRule"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "alert-rules:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops"
+        ]
+      }
+    },
+    "/api/v1/alert-rules/{ruleId}": {
+      "put": {
+        "operationId": "updateAlertRule",
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Change an alert rule",
+        "description": "Audited. New thresholds apply from the next observation; open alerts are re-evaluated as telemetry arrives.\n\nRequires permission `alert-rules:write` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ruleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AlertRuleId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or outside the caller's row-level scope.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "alert-rules:write",
+        "x-allowed-roles": [
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "warningThreshold": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 600
+                  },
+                  "highThreshold": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 600
+                  },
+                  "criticalThreshold": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 600
+                  },
+                  "escalateAfter": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50
+                  },
+                  "resolveAfter": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/telemetry": {
+      "post": {
+        "operationId": "ingestTelemetry",
+        "tags": [
+          "Telemetry"
+        ],
+        "summary": "Push report observations",
+        "description": "The integration point for the portal: one event per dashboard load or refresh. Authenticate with `X-API-Key` (service) or a bearer token holding `telemetry:ingest`. Each event is validated on its own; rejected events are listed in the response and the rest are processed.\n\nRequires permission `telemetry:ingest` (roles: Platform Admin).",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryIngestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "telemetry:ingest",
+        "x-allowed-roles": [
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "events": {
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "type": "array",
+                    "items": {},
+                    "description": "Array of TelemetryEvent. Each element is validated on its own, so one bad event does not reject the batch."
+                  }
+                },
+                "required": [
+                  "events"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/costs/summary": {
+      "get": {
+        "operationId": "getCostSummary",
+        "tags": [
+          "Cost"
+        ],
+        "summary": "Cost by period, and how the metered bill breaks down",
+        "description": "Platform-wide reconciliation (metered, idle, unattributed, method comparison) is returned only to callers who see all reports.\n\nRequires permission `costs:read` (roles: Platform Admin, FinOps Analyst, Report Owner).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "costs:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner"
+        ],
+        "x-row-level-security": true
+      }
+    },
+    "/api/v1/costs/reports": {
+      "get": {
+        "operationId": "getCostByReport",
+        "tags": [
+          "Cost"
+        ],
+        "summary": "Unit economics per report",
+        "description": "Credits, dollars and unit cost per active view for one period or for all periods combined.\n\nRequires permission `costs:read` (roles: Platform Admin, FinOps Analyst, Report Owner).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "description": "`latest`, `lifetime`, or a zero-based period number.",
+            "schema": {
+              "default": "latest",
+              "type": "string",
+              "pattern": "^(latest|lifetime|\\d{1,3})$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostReports"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "costs:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner"
+        ],
+        "x-row-level-security": true
+      }
+    },
+    "/api/v1/costs/chargeback": {
+      "get": {
+        "operationId": "getChargeback",
+        "tags": [
+          "Cost"
+        ],
+        "summary": "Cost by owner, including the unowned pool",
+        "description": "Requires permission `chargeback:read` (roles: Platform Admin, FinOps Analyst).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chargeback"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "chargeback:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops"
+        ]
+      }
+    },
+    "/api/v1/costs/anomalies": {
+      "get": {
+        "operationId": "getCostAnomalies",
+        "tags": [
+          "Cost"
+        ],
+        "summary": "Where cost and usage disagree, with a monthly dollar figure",
+        "description": "Requires permission `costs:read` (roles: Platform Admin, FinOps Analyst, Report Owner).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostAnomalies"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "costs:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner"
+        ],
+        "x-row-level-security": true
+      }
+    },
+    "/api/v1/dq/summary": {
+      "get": {
+        "operationId": "getDataQualitySummary",
+        "tags": [
+          "Data quality"
+        ],
+        "summary": "Rules, row counts and reconciliation checks",
+        "description": "Requires permission `dq:read` (roles: Platform Admin, FinOps Analyst).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DqSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "dq:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops"
+        ]
+      }
+    },
+    "/api/v1/dq/findings": {
+      "get": {
+        "operationId": "listDataQualityFindings",
+        "tags": [
+          "Data quality"
+        ],
+        "summary": "Individual rule violations, traceable to a source line",
+        "description": "Requires permission `dq:read` (roles: Platform Admin, FinOps Analyst).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "ruleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^DQ-\\d{2}$"
+            }
+          },
+          {
+            "name": "reportId",
+            "in": "query",
+            "required": false,
+            "description": "Report identifier",
+            "schema": {
+              "type": "string",
+              "pattern": "^RPT_\\d{1,6}$",
+              "example": "RPT_203"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DqFinding"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "dq:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops"
+        ]
+      }
+    },
+    "/api/v1/dq/quarantine": {
+      "get": {
+        "operationId": "listQuarantine",
+        "tags": [
+          "Data quality"
+        ],
+        "summary": "Rows excluded from cost attribution, with the imputed replacement",
+        "description": "Requires permission `dq:read` (roles: Platform Admin, FinOps Analyst).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/QuarantineRow"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "dq:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops"
+        ]
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "operationId": "listUsers",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Accounts and their roles",
+        "description": "Requires permission `users:read` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "$ref": "#/components/schemas/Role"
+                          },
+                          "roleLabel": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "all",
+                              "own"
+                            ]
+                          },
+                          "permissions": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/Permission"
+                            }
+                          },
+                          "reportsOwned": {
+                            "type": "integer"
+                          },
+                          "lastLoginAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "description": "ISO-8601 timestamp (UTC)",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "email",
+                          "name",
+                          "role",
+                          "roleLabel",
+                          "scope",
+                          "permissions",
+                          "reportsOwned",
+                          "lastLoginAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "users:read",
+        "x-allowed-roles": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/audit-log": {
+      "get": {
+        "operationId": "listAuditLog",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Every state-changing action, newest first",
+        "description": "Requires permission `audit:read` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditEntry"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "audit:read",
+        "x-allowed-roles": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/incidents": {
+      "post": {
+        "operationId": "injectIncident",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Inject a synthetic incident (demo mode)",
+        "description": "Pushes one observation for the chosen report through the normal telemetry pipeline, so the alert it causes is a real one. Disabled unless DEMO_MODE=true.\n\nRequires permission `incidents:inject` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryIngestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "incidents:inject",
+        "x-allowed-roles": [
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InjectIncidentRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/simulator": {
+      "get": {
+        "operationId": "getSimulator",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "State of the built-in telemetry simulator",
+        "description": "Requires permission `simulator:control` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatorState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "simulator:control",
+        "x-allowed-roles": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "updateSimulator",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Start, stop or re-pace the telemetry simulator",
+        "description": "Requires permission `simulator:control` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatorState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "simulator:control",
+        "x-allowed-roles": [
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "running": {
+                    "type": "boolean"
+                  },
+                  "intervalMs": {
+                    "type": "integer",
+                    "minimum": 250,
+                    "maximum": 60000
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/status": {
+      "get": {
+        "operationId": "getSystemStatus",
+        "tags": [
+          "System"
+        ],
+        "summary": "Build, warehouse and real-time status",
+        "description": "Requires permission `reports:read` (roles: Platform Admin, FinOps Analyst, Report Owner, Viewer).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "reports:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Access token from `/auth/login`."
+      },
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Service key for the telemetry emitter."
+      }
+    },
+    "schemas": {
+      "Alert": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "`<ruleId>:<reportId>`. One open alert per fingerprint."
+          },
+          "ruleId": {
+            "$ref": "#/components/schemas/AlertRuleId"
+          },
+          "ruleName": {
+            "type": "string"
+          },
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "reportName": {
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AlertStatus"
+          },
+          "message": {
+            "type": "string"
+          },
+          "value": {
+            "description": "Latest observed value (seconds for latency, streak length for refresh).",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "threshold": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurrences": {
+            "type": "integer",
+            "description": "Breaching observations folded into this alert."
+          },
+          "reopenCount": {
+            "type": "integer"
+          },
+          "isFlapping": {
+            "type": "boolean"
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acknowledgedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acknowledgedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ackNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snoozedUntil": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "routing": {
+            "$ref": "#/components/schemas/AlertRouting"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AlertSource"
+          }
+        },
+        "required": [
+          "id",
+          "fingerprint",
+          "ruleId",
+          "ruleName",
+          "reportId",
+          "reportName",
+          "severity",
+          "status",
+          "message",
+          "value",
+          "threshold",
+          "unit",
+          "occurrences",
+          "reopenCount",
+          "isFlapping",
+          "firstSeenAt",
+          "lastSeenAt",
+          "resolvedAt",
+          "acknowledgedBy",
+          "acknowledgedAt",
+          "ackNote",
+          "snoozedUntil",
+          "routing",
+          "source"
+        ],
+        "additionalProperties": false
+      },
+      "AlertDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "`<ruleId>:<reportId>`. One open alert per fingerprint."
+          },
+          "ruleId": {
+            "$ref": "#/components/schemas/AlertRuleId"
+          },
+          "ruleName": {
+            "type": "string"
+          },
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "reportName": {
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AlertStatus"
+          },
+          "message": {
+            "type": "string"
+          },
+          "value": {
+            "description": "Latest observed value (seconds for latency, streak length for refresh).",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "threshold": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurrences": {
+            "type": "integer",
+            "description": "Breaching observations folded into this alert."
+          },
+          "reopenCount": {
+            "type": "integer"
+          },
+          "isFlapping": {
+            "type": "boolean"
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acknowledgedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acknowledgedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ackNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snoozedUntil": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "routing": {
+            "$ref": "#/components/schemas/AlertRouting"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AlertSource"
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertTimelineEntry"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "fingerprint",
+          "ruleId",
+          "ruleName",
+          "reportId",
+          "reportName",
+          "severity",
+          "status",
+          "message",
+          "value",
+          "threshold",
+          "unit",
+          "occurrences",
+          "reopenCount",
+          "isFlapping",
+          "firstSeenAt",
+          "lastSeenAt",
+          "resolvedAt",
+          "acknowledgedBy",
+          "acknowledgedAt",
+          "ackNote",
+          "snoozedUntil",
+          "routing",
+          "source",
+          "timeline"
+        ],
+        "additionalProperties": false
+      },
+      "AlertEventType": {
+        "type": "string",
+        "enum": [
+          "fired",
+          "escalated",
+          "deescalated",
+          "acknowledged",
+          "snoozed",
+          "resolved",
+          "reopened",
+          "rerouted"
+        ]
+      },
+      "AlertRouting": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admins"
+            ]
+          },
+          "ownerEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "escalated": {
+            "type": "boolean",
+            "description": "True when the report has no owner, so the alert went to platform admins."
+          }
+        },
+        "required": [
+          "kind",
+          "ownerEmail",
+          "escalated"
+        ],
+        "additionalProperties": false
+      },
+      "AlertRule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/AlertRuleId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "inBrief": {
+            "type": "boolean",
+            "description": "True for the two conditions the case-study brief mandates."
+          },
+          "warningThreshold": {
+            "description": "Latency: seconds above which a warning fires.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "highThreshold": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "criticalThreshold": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "escalateAfter": {
+            "description": "Refresh: consecutive failures after which severity becomes critical.",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "resolveAfter": {
+            "type": "integer",
+            "description": "Consecutive healthy observations required before an alert auto-resolves (flap damping)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "enabled",
+          "inBrief",
+          "warningThreshold",
+          "highThreshold",
+          "criticalThreshold",
+          "escalateAfter",
+          "resolveAfter",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "AlertRuleId": {
+        "type": "string",
+        "enum": [
+          "latency",
+          "refresh_failure",
+          "refresh_unknown",
+          "invalid_telemetry"
+        ]
+      },
+      "AlertSource": {
+        "type": "string",
+        "enum": [
+          "backfill",
+          "live",
+          "injected",
+          "api"
+        ]
+      },
+      "AlertStats": {
+        "type": "object",
+        "properties": {
+          "firing": {
+            "type": "integer"
+          },
+          "acknowledged": {
+            "type": "integer"
+          },
+          "resolved": {
+            "type": "integer"
+          },
+          "escalated": {
+            "type": "integer"
+          },
+          "flapping": {
+            "type": "integer"
+          },
+          "bySeverity": {
+            "type": "object",
+            "properties": {
+              "info": {
+                "type": "integer"
+              },
+              "warning": {
+                "type": "integer"
+              },
+              "high": {
+                "type": "integer"
+              },
+              "critical": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "info",
+              "warning",
+              "high",
+              "critical"
+            ],
+            "additionalProperties": false
+          },
+          "byRule": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "firing",
+          "acknowledged",
+          "resolved",
+          "escalated",
+          "flapping",
+          "bySeverity",
+          "byRule"
+        ],
+        "additionalProperties": false
+      },
+      "AlertStatus": {
+        "type": "string",
+        "enum": [
+          "firing",
+          "acknowledged",
+          "resolved"
+        ],
+        "description": "firing: condition holds, nobody has taken it. acknowledged: condition holds, someone owns it. resolved: condition cleared."
+      },
+      "AlertTimelineEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "alertId": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/AlertEventType"
+          },
+          "at": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "actor": {
+            "type": "string",
+            "description": "User email, or `system` for engine transitions."
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "alertId",
+          "type",
+          "at",
+          "actor",
+          "severity",
+          "value",
+          "detail"
+        ],
+        "additionalProperties": false
+      },
+      "AuditEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "at": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "actorRole": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "example": "report.owner.assign"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "requestId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "actor",
+          "actorRole",
+          "action",
+          "targetType",
+          "targetId",
+          "detail",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "Short-lived JWT. Send as `Authorization: Bearer <token>`."
+          },
+          "expiresIn": {
+            "type": "integer",
+            "description": "Seconds until the access token expires."
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "required": [
+          "accessToken",
+          "expiresIn",
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "Chargeback": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChargebackRow"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "ChargebackRow": {
+        "type": "object",
+        "properties": {
+          "ownerKey": {
+            "type": "string"
+          },
+          "isUnowned": {
+            "type": "boolean"
+          },
+          "reportPeriods": {
+            "type": "integer"
+          },
+          "reportsNow": {
+            "type": "integer"
+          },
+          "views": {
+            "type": "number"
+          },
+          "creditsFullyLoaded": {
+            "type": "number"
+          },
+          "snowflakeCostLoadedUsd": {
+            "type": "number"
+          },
+          "awsHostingCostUsd": {
+            "type": "number"
+          },
+          "totalCostUsd": {
+            "type": "number"
+          },
+          "totalCostPerViewUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "shareOfTotalCost": {
+            "type": "number"
+          },
+          "latestPeriodCostUsd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "ownerKey",
+          "isUnowned",
+          "reportPeriods",
+          "reportsNow",
+          "views",
+          "creditsFullyLoaded",
+          "snowflakeCostLoadedUsd",
+          "awsHostingCostUsd",
+          "totalCostUsd",
+          "totalCostPerViewUsd",
+          "shareOfTotalCost",
+          "latestPeriodCostUsd"
+        ],
+        "additionalProperties": false
+      },
+      "CostAnomalies": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CostAnomaly"
+            }
+          },
+          "byType": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "anomalyType": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "estMonthlyImpactUsd": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "anomalyType",
+                "count",
+                "estMonthlyImpactUsd"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items",
+          "byType"
+        ],
+        "additionalProperties": false
+      },
+      "CostAnomaly": {
+        "type": "object",
+        "properties": {
+          "anomalyType": {
+            "type": "string",
+            "enum": [
+              "ZOMBIE_REPORT",
+              "ORPHANED_SPEND",
+              "COST_PER_VIEW_OUTLIER",
+              "ZERO_VIEW_SPEND",
+              "QUARANTINED_CREDITS"
+            ]
+          },
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "reportName": {
+            "type": "string"
+          },
+          "periodSeq": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "periodLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metricValue": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "metricUnit": {
+            "type": "string"
+          },
+          "estMonthlyImpactUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "anomalyType",
+          "reportId",
+          "reportName",
+          "periodSeq",
+          "periodLabel",
+          "metricValue",
+          "metricUnit",
+          "estMonthlyImpactUsd",
+          "detail"
+        ],
+        "additionalProperties": false
+      },
+      "CostPeriod": {
+        "type": "object",
+        "properties": {
+          "periodSeq": {
+            "type": "integer"
+          },
+          "periodLabel": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "reports": {
+            "type": "integer"
+          },
+          "views": {
+            "type": "number"
+          },
+          "creditsAttributed": {
+            "type": "number"
+          },
+          "creditsFullyLoaded": {
+            "type": "number"
+          },
+          "snowflakeCostLoadedUsd": {
+            "type": "number"
+          },
+          "awsHostingCostUsd": {
+            "type": "number"
+          },
+          "totalCostUsd": {
+            "type": "number"
+          },
+          "orphanedCostUsd": {
+            "type": "number"
+          },
+          "totalCostPerViewUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "creditsMeteredCompute": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "creditsIdle": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "creditsUnattributed": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "periodSeq",
+          "periodLabel",
+          "periodStart",
+          "periodEnd",
+          "reports",
+          "views",
+          "creditsAttributed",
+          "creditsFullyLoaded",
+          "snowflakeCostLoadedUsd",
+          "awsHostingCostUsd",
+          "totalCostUsd",
+          "orphanedCostUsd",
+          "totalCostPerViewUsd",
+          "creditsMeteredCompute",
+          "creditsIdle",
+          "creditsUnattributed"
+        ],
+        "additionalProperties": false
+      },
+      "CostReportRow": {
+        "type": "object",
+        "properties": {
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "reportName": {
+            "type": "string"
+          },
+          "ownerEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isOrphaned": {
+            "type": "boolean"
+          },
+          "efficiencyQuadrant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EfficiencyQuadrant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monthlyActiveViews": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "queryCount30d": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "creditsAttributed": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "creditsFullyLoaded": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "snowflakeCostLoadedUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "awsHostingCostUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalCostUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "snowflakeCostPerViewUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalCostPerViewUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "snowflakeCostPerQueryUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "isCostImputed": {
+            "type": "boolean"
+          },
+          "runRateViews": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "runRateTotalCostUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "reportId",
+          "reportName",
+          "ownerEmail",
+          "isOrphaned",
+          "efficiencyQuadrant",
+          "monthlyActiveViews",
+          "queryCount30d",
+          "creditsAttributed",
+          "creditsFullyLoaded",
+          "snowflakeCostLoadedUsd",
+          "awsHostingCostUsd",
+          "totalCostUsd",
+          "snowflakeCostPerViewUsd",
+          "totalCostPerViewUsd",
+          "snowflakeCostPerQueryUsd",
+          "isCostImputed",
+          "runRateViews",
+          "runRateTotalCostUsd"
+        ],
+        "additionalProperties": false
+      },
+      "CostReports": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string"
+          },
+          "periodLabel": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CostReportRow"
+            }
+          }
+        },
+        "required": [
+          "period",
+          "periodLabel",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "CostSummary": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "all",
+              "own"
+            ]
+          },
+          "creditPriceUsd": {
+            "type": "number"
+          },
+          "latestPeriodSeq": {
+            "type": "integer"
+          },
+          "latest": {
+            "$ref": "#/components/schemas/CostPeriod"
+          },
+          "lifetime": {
+            "type": "object",
+            "properties": {
+              "totalCostUsd": {
+                "type": "number"
+              },
+              "snowflakeCostLoadedUsd": {
+                "type": "number"
+              },
+              "awsHostingCostUsd": {
+                "type": "number"
+              },
+              "orphanedCostUsd": {
+                "type": "number"
+              },
+              "creditsAttributed": {
+                "type": "number"
+              },
+              "creditsFullyLoaded": {
+                "type": "number"
+              },
+              "totalCostPerViewUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "totalCostUsd",
+              "snowflakeCostLoadedUsd",
+              "awsHostingCostUsd",
+              "orphanedCostUsd",
+              "creditsAttributed",
+              "creditsFullyLoaded",
+              "totalCostPerViewUsd"
+            ],
+            "additionalProperties": false
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CostPeriod"
+            }
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "creditsMeteredCompute": {
+                    "type": "number"
+                  },
+                  "creditsAttributedToReports": {
+                    "type": "number"
+                  },
+                  "creditsIdle": {
+                    "type": "number"
+                  },
+                  "creditsUnattributed": {
+                    "type": "number"
+                  },
+                  "creditsQuarantinedImputed": {
+                    "type": "number"
+                  },
+                  "idleShare": {
+                    "type": "number"
+                  },
+                  "unattributed": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "attributionClass": {
+                          "type": "string"
+                        },
+                        "tagApp": {
+                          "type": "string"
+                        },
+                        "tagReportId": {
+                          "type": "string"
+                        },
+                        "queryRows": {
+                          "type": "integer"
+                        },
+                        "credits": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "attributionClass",
+                        "tagApp",
+                        "tagReportId",
+                        "queryRows",
+                        "credits"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "methods": {
+                    "type": "object",
+                    "properties": {
+                      "creditsDirect": {
+                        "type": "number"
+                      },
+                      "creditsIdleLoaded": {
+                        "type": "number"
+                      },
+                      "creditsTimeWeighted": {
+                        "type": "number"
+                      },
+                      "medianAbsDifferencePct": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "correlation": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "creditsDirect",
+                      "creditsIdleLoaded",
+                      "creditsTimeWeighted",
+                      "medianAbsDifferencePct",
+                      "correlation"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "quarantine": {
+                    "type": "object",
+                    "properties": {
+                      "reportPeriods": {
+                        "type": "integer"
+                      },
+                      "creditsReported": {
+                        "type": "number"
+                      },
+                      "creditsImputed": {
+                        "type": "number"
+                      },
+                      "costImputedUsd": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "reportPeriods",
+                      "creditsReported",
+                      "creditsImputed",
+                      "costImputedUsd"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "correlations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "usageMeasure": {
+                          "type": "string"
+                        },
+                        "costMeasure": {
+                          "type": "string"
+                        },
+                        "pearsonR": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "observations": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "usageMeasure",
+                        "costMeasure",
+                        "pearsonR",
+                        "observations"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "creditsMeteredCompute",
+                  "creditsAttributedToReports",
+                  "creditsIdle",
+                  "creditsUnattributed",
+                  "creditsQuarantinedImputed",
+                  "idleShare",
+                  "unattributed",
+                  "methods",
+                  "quarantine",
+                  "correlations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whole-platform reconciliation. Null for callers scoped to their own reports."
+          }
+        },
+        "required": [
+          "scope",
+          "creditPriceUsd",
+          "latestPeriodSeq",
+          "latest",
+          "lifetime",
+          "periods",
+          "platform"
+        ],
+        "additionalProperties": false
+      },
+      "DqFinding": {
+        "type": "object",
+        "properties": {
+          "ruleId": {
+            "type": "string"
+          },
+          "rowSeq": {
+            "type": "integer",
+            "description": "1-based line number in the source file."
+          },
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "periodSeq": {
+            "type": "integer"
+          },
+          "observedValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ruleId",
+          "rowSeq",
+          "reportId",
+          "periodSeq",
+          "observedValue",
+          "detail"
+        ],
+        "additionalProperties": false
+      },
+      "DqRule": {
+        "type": "object",
+        "properties": {
+          "ruleId": {
+            "type": "string"
+          },
+          "ruleName": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "NORMALIZE",
+              "QUARANTINE",
+              "FLAG",
+              "RESTRUCTURE"
+            ]
+          },
+          "inBrief": {
+            "type": "boolean",
+            "description": "Listed in the case-study brief. False = found by profiling."
+          },
+          "description": {
+            "type": "string"
+          },
+          "rowsAffected": {
+            "type": "integer"
+          },
+          "reportsAffected": {
+            "type": "integer"
+          },
+          "pctOfRows": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "ruleId",
+          "ruleName",
+          "category",
+          "severity",
+          "action",
+          "inBrief",
+          "description",
+          "rowsAffected",
+          "reportsAffected",
+          "pctOfRows"
+        ],
+        "additionalProperties": false
+      },
+      "DqSummary": {
+        "type": "object",
+        "properties": {
+          "rowsLanded": {
+            "type": "integer"
+          },
+          "reports": {
+            "type": "integer"
+          },
+          "periods": {
+            "type": "integer"
+          },
+          "rowsQuarantined": {
+            "type": "integer"
+          },
+          "rulesTriggered": {
+            "type": "integer"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DqRule"
+            }
+          },
+          "reconciliation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationCheck"
+            }
+          },
+          "warehouse": {
+            "type": "object",
+            "properties": {
+              "dialect": {
+                "type": "string"
+              },
+              "builtAt": {
+                "type": "string"
+              },
+              "suiteDurationMs": {
+                "type": "integer"
+              },
+              "queryRowsSimulated": {
+                "type": "integer"
+              },
+              "queriesPerRow": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "dialect",
+              "builtAt",
+              "suiteDurationMs",
+              "queryRowsSimulated",
+              "queriesPerRow"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "rowsLanded",
+          "reports",
+          "periods",
+          "rowsQuarantined",
+          "rulesTriggered",
+          "rules",
+          "reconciliation",
+          "warehouse"
+        ],
+        "additionalProperties": false
+      },
+      "EfficiencyQuadrant": {
+        "type": "string",
+        "enum": [
+          "ZOMBIE",
+          "COSTLY",
+          "WORKHORSE",
+          "EFFICIENT",
+          "NICHE"
+        ]
+      },
+      "InjectIncidentRequest": {
+        "type": "object",
+        "properties": {
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "latency_spike",
+              "refresh_failure",
+              "refresh_timeout",
+              "recovery"
+            ]
+          },
+          "loadTimeSec": {
+            "description": "For latency_spike. Defaults to 42 seconds.",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3600
+          }
+        },
+        "required": [
+          "reportId",
+          "kind"
+        ]
+      },
+      "LatencySeverity": {
+        "type": "string",
+        "enum": [
+          "OK",
+          "WARNING",
+          "HIGH",
+          "CRITICAL"
+        ],
+        "description": "Load-time tier: WARNING above 15 s, HIGH above 30 s, CRITICAL above 45 s (defaults)."
+      },
+      "OrphanQueue": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrphanQueueItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "totalCostAtRiskUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "assignableOwners": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "reportsOwned": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "email",
+                "name",
+                "reportsOwned"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "totalCostAtRiskUsd",
+          "assignableOwners"
+        ],
+        "additionalProperties": false
+      },
+      "OrphanQueueItem": {
+        "type": "object",
+        "properties": {
+          "priorityRank": {
+            "type": "integer"
+          },
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "reportName": {
+            "type": "string"
+          },
+          "orphanEncoding": {
+            "description": "How the source encoded \"no owner\": NAN_LITERAL or SENTINEL.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "periodsSinceOwned": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "suggestedOwner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suggestionBasis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mostFrequentOwner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refreshStatus": {
+            "$ref": "#/components/schemas/RefreshStatus"
+          },
+          "latencySeverity": {
+            "$ref": "#/components/schemas/LatencySeverity"
+          },
+          "monthlyActiveViews": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "activeAlerts": {
+            "type": "integer"
+          },
+          "costAtRiskUsd": {
+            "description": "Monthly run-rate with nobody accountable. Null without `costs:read`.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "lifetimeCostWhileOrphanedUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "priorityRank",
+          "reportId",
+          "reportName",
+          "orphanEncoding",
+          "periodsSinceOwned",
+          "suggestedOwner",
+          "suggestionBasis",
+          "mostFrequentOwner",
+          "refreshStatus",
+          "latencySeverity",
+          "monthlyActiveViews",
+          "activeAlerts",
+          "costAtRiskUsd",
+          "lifetimeCostWhileOrphanedUsd"
+        ],
+        "additionalProperties": false
+      },
+      "Overview": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "all",
+              "own"
+            ]
+          },
+          "asOf": {
+            "type": "object",
+            "properties": {
+              "periodSeq": {
+                "type": "integer"
+              },
+              "periodLabel": {
+                "type": "string"
+              },
+              "periodStart": {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              "periodEnd": {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "periodSeq",
+              "periodLabel",
+              "periodStart",
+              "periodEnd"
+            ],
+            "additionalProperties": false
+          },
+          "reports": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "healthy": {
+                "type": "integer"
+              },
+              "orphaned": {
+                "type": "integer"
+              },
+              "refreshFailing": {
+                "type": "integer"
+              },
+              "refreshUnknown": {
+                "type": "integer"
+              },
+              "slow": {
+                "type": "integer"
+              },
+              "critical": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "healthy",
+              "orphaned",
+              "refreshFailing",
+              "refreshUnknown",
+              "slow",
+              "critical"
+            ],
+            "additionalProperties": false
+          },
+          "alerts": {
+            "type": "object",
+            "properties": {
+              "firing": {
+                "type": "integer"
+              },
+              "acknowledged": {
+                "type": "integer"
+              },
+              "escalated": {
+                "type": "integer"
+              },
+              "critical": {
+                "type": "integer"
+              },
+              "high": {
+                "type": "integer"
+              },
+              "warning": {
+                "type": "integer"
+              },
+              "info": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "firing",
+              "acknowledged",
+              "escalated",
+              "critical",
+              "high",
+              "warning",
+              "info"
+            ],
+            "additionalProperties": false
+          },
+          "latency": {
+            "type": "object",
+            "properties": {
+              "medianSec": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "p95Sec": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "thresholdSec": {
+                "type": "number"
+              },
+              "distribution": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "bucket": {
+                      "type": "string"
+                    },
+                    "reports": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "bucket",
+                    "reports"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "medianSec",
+              "p95Sec",
+              "thresholdSec",
+              "distribution"
+            ],
+            "additionalProperties": false
+          },
+          "trend": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "periodSeq": {
+                  "type": "integer"
+                },
+                "periodLabel": {
+                  "type": "string"
+                },
+                "orphaned": {
+                  "type": "integer"
+                },
+                "refreshFailures": {
+                  "type": "integer"
+                },
+                "latencyBreaches": {
+                  "type": "integer"
+                },
+                "medianLoadTimeSec": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "totalCostUsd": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "periodSeq",
+                "periodLabel",
+                "orphaned",
+                "refreshFailures",
+                "latencyBreaches",
+                "medianLoadTimeSec",
+                "totalCostUsd"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "totalCostUsd": {
+                    "type": "number"
+                  },
+                  "snowflakeCostUsd": {
+                    "type": "number"
+                  },
+                  "awsHostingCostUsd": {
+                    "type": "number"
+                  },
+                  "costPerViewUsd": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "orphanedCostUsd": {
+                    "type": "number"
+                  },
+                  "zombieRunRateUsd": {
+                    "type": "number"
+                  },
+                  "zombieReports": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "totalCostUsd",
+                  "snowflakeCostUsd",
+                  "awsHostingCostUsd",
+                  "costPerViewUsd",
+                  "orphanedCostUsd",
+                  "zombieRunRateUsd",
+                  "zombieReports"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attention": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "reportId": {
+                  "type": "string",
+                  "pattern": "^RPT_\\d{1,6}$",
+                  "description": "Report identifier",
+                  "example": "RPT_203"
+                },
+                "reportName": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "severity": {
+                  "$ref": "#/components/schemas/Severity"
+                }
+              },
+              "required": [
+                "reportId",
+                "reportName",
+                "reason",
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "scope",
+          "asOf",
+          "reports",
+          "alerts",
+          "latency",
+          "trend",
+          "cost",
+          "attention"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerAssignment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "ownerEmail": {
+            "type": "string"
+          },
+          "previousOwnerEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assignedBy": {
+            "type": "string"
+          },
+          "assignedAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "reportId",
+          "ownerEmail",
+          "previousOwnerEmail",
+          "assignedBy",
+          "assignedAt",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "OwnershipChange": {
+        "type": "object",
+        "properties": {
+          "periodSeq": {
+            "type": "integer"
+          },
+          "periodLabel": {
+            "type": "string"
+          },
+          "ownerEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changeType": {
+            "type": "string",
+            "enum": [
+              "INITIAL",
+              "INITIAL_ORPHANED",
+              "UNCHANGED",
+              "REASSIGNED",
+              "ORPHANED",
+              "STILL_ORPHANED",
+              "CLAIMED"
+            ]
+          }
+        },
+        "required": [
+          "periodSeq",
+          "periodLabel",
+          "ownerEmail",
+          "changeType"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerSource": {
+        "type": "string",
+        "enum": [
+          "telemetry",
+          "assigned"
+        ],
+        "description": "telemetry: owner as reported by the portal. assigned: set by an admin in the Command Centre."
+      },
+      "PeriodObservation": {
+        "type": "object",
+        "properties": {
+          "periodSeq": {
+            "type": "integer"
+          },
+          "periodLabel": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "ownerEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isOrphaned": {
+            "type": "boolean"
+          },
+          "refreshStatus": {
+            "$ref": "#/components/schemas/RefreshStatus"
+          },
+          "loadTimeSec": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "latencySeverity": {
+            "$ref": "#/components/schemas/LatencySeverity"
+          },
+          "monthlyActiveViews": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "queryCount30d": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "concurrentUserPeak": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "flags": {
+            "type": "object",
+            "properties": {
+              "zeroViews": {
+                "type": "boolean"
+              },
+              "concurrencyExceedsViews": {
+                "type": "boolean"
+              },
+              "costQuarantined": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "zeroViews",
+              "concurrencyExceedsViews",
+              "costQuarantined"
+            ],
+            "additionalProperties": false
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportCost"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "periodSeq",
+          "periodLabel",
+          "periodStart",
+          "periodEnd",
+          "ownerEmail",
+          "isOrphaned",
+          "refreshStatus",
+          "loadTimeSec",
+          "latencySeverity",
+          "monthlyActiveViews",
+          "queryCount30d",
+          "concurrentUserPeak",
+          "flags",
+          "cost"
+        ],
+        "additionalProperties": false
+      },
+      "Permission": {
+        "type": "string",
+        "enum": [
+          "reports:read",
+          "costs:read",
+          "chargeback:read",
+          "pii:read",
+          "orphans:read",
+          "orphans:assign",
+          "alerts:read",
+          "alerts:ack",
+          "alerts:snooze",
+          "alert-rules:read",
+          "alert-rules:write",
+          "dq:read",
+          "users:read",
+          "audit:read",
+          "telemetry:ingest",
+          "incidents:inject",
+          "simulator:control"
+        ]
+      },
+      "Persona": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "roleLabel": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "name",
+          "role",
+          "roleLabel",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "additionalProperties": false
+      },
+      "QuarantineRow": {
+        "type": "object",
+        "properties": {
+          "rowSeq": {
+            "type": "integer"
+          },
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "periodSeq": {
+            "type": "integer"
+          },
+          "ruleId": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "rawValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creditsReported": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "creditsImputed": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "costImputedUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rowSeq",
+          "reportId",
+          "periodSeq",
+          "ruleId",
+          "reasonCode",
+          "rawValue",
+          "creditsReported",
+          "creditsImputed",
+          "costImputedUsd"
+        ],
+        "additionalProperties": false
+      },
+      "RealtimeTicket": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "description": "Single-use ticket, valid for 30 seconds."
+          },
+          "expiresIn": {
+            "type": "integer"
+          },
+          "wsPath": {
+            "type": "string"
+          },
+          "ssePath": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticket",
+          "expiresIn",
+          "wsPath",
+          "ssePath"
+        ],
+        "additionalProperties": false
+      },
+      "ReconciliationCheck": {
+        "type": "object",
+        "properties": {
+          "checkId": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expectedValue": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "actualValue": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "difference": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "tolerance": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL"
+            ]
+          }
+        },
+        "required": [
+          "checkId",
+          "description",
+          "expectedValue",
+          "actualValue",
+          "difference",
+          "tolerance",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "RefreshStatus": {
+        "type": "string",
+        "enum": [
+          "SUCCESS",
+          "FAILED",
+          "TIMED_OUT",
+          "UNKNOWN"
+        ],
+        "description": "Outcome of the last automated refresh. UNKNOWN means the portal reported no outcome."
+      },
+      "ReportCost": {
+        "type": "object",
+        "properties": {
+          "creditsAttributed": {
+            "description": "Method A. Null when the reported figure was quarantined.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "creditsFullyLoaded": {
+            "description": "Includes the report's share of warehouse idle time.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "snowflakeCostUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "snowflakeCostLoadedUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "awsHostingCostUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalCostUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "snowflakeCostPerViewUsd": {
+            "description": "Unit cost per active view, attributed basis.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalCostPerViewUsd": {
+            "description": "Unit cost per active view, fully loaded incl. AWS.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "isCostImputed": {
+            "type": "boolean",
+            "description": "True when the cost was estimated from execution time (Method C)."
+          },
+          "isCostQuarantined": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "creditsAttributed",
+          "creditsFullyLoaded",
+          "snowflakeCostUsd",
+          "snowflakeCostLoadedUsd",
+          "awsHostingCostUsd",
+          "totalCostUsd",
+          "snowflakeCostPerViewUsd",
+          "totalCostPerViewUsd",
+          "isCostImputed",
+          "isCostQuarantined"
+        ],
+        "additionalProperties": false
+      },
+      "ReportDetail": {
+        "type": "object",
+        "properties": {
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "reportName": {
+            "type": "string"
+          },
+          "ownerEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerSource": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isOrphaned": {
+            "type": "boolean"
+          },
+          "refreshStatus": {
+            "$ref": "#/components/schemas/RefreshStatus"
+          },
+          "refreshFailureStreak": {
+            "type": "integer"
+          },
+          "loadTimeSec": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "latencySeverity": {
+            "$ref": "#/components/schemas/LatencySeverity"
+          },
+          "lastObservedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monthlyActiveViews": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "queryCount30d": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "concurrentUserPeak": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "efficiencyQuadrant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EfficiencyQuadrant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "activeAlerts": {
+            "type": "integer"
+          },
+          "highestAlertSeverity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportCost"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ownership": {
+            "type": "object",
+            "properties": {
+              "distinctOwners": {
+                "type": "integer"
+              },
+              "ownershipChanges": {
+                "type": "integer"
+              },
+              "periodsOrphaned": {
+                "type": "integer"
+              },
+              "lastKnownOwner": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mostFrequentOwner": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OwnershipChange"
+                }
+              },
+              "assignments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OwnerAssignment"
+                }
+              }
+            },
+            "required": [
+              "distinctOwners",
+              "ownershipChanges",
+              "periodsOrphaned",
+              "lastKnownOwner",
+              "mostFrequentOwner",
+              "history",
+              "assignments"
+            ],
+            "additionalProperties": false
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PeriodObservation"
+            }
+          },
+          "alerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Alert"
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ruleId": {
+                  "type": "string"
+                },
+                "ruleName": {
+                  "type": "string"
+                },
+                "periodSeq": {
+                  "type": "integer"
+                },
+                "observedValue": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "detail": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "ruleId",
+                "ruleName",
+                "periodSeq",
+                "observedValue",
+                "detail"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "reportId",
+          "reportName",
+          "ownerEmail",
+          "ownerSource",
+          "isOrphaned",
+          "refreshStatus",
+          "refreshFailureStreak",
+          "loadTimeSec",
+          "latencySeverity",
+          "lastObservedAt",
+          "monthlyActiveViews",
+          "queryCount30d",
+          "concurrentUserPeak",
+          "efficiencyQuadrant",
+          "activeAlerts",
+          "highestAlertSeverity",
+          "cost",
+          "ownership",
+          "history",
+          "alerts",
+          "findings"
+        ],
+        "additionalProperties": false
+      },
+      "ReportSummary": {
+        "type": "object",
+        "properties": {
+          "reportId": {
+            "type": "string",
+            "pattern": "^RPT_\\d{1,6}$",
+            "description": "Report identifier",
+            "example": "RPT_203"
+          },
+          "reportName": {
+            "type": "string"
+          },
+          "ownerEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerSource": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isOrphaned": {
+            "type": "boolean"
+          },
+          "refreshStatus": {
+            "$ref": "#/components/schemas/RefreshStatus"
+          },
+          "refreshFailureStreak": {
+            "type": "integer"
+          },
+          "loadTimeSec": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "latencySeverity": {
+            "$ref": "#/components/schemas/LatencySeverity"
+          },
+          "lastObservedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monthlyActiveViews": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "queryCount30d": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "concurrentUserPeak": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "efficiencyQuadrant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EfficiencyQuadrant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "activeAlerts": {
+            "type": "integer"
+          },
+          "highestAlertSeverity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportCost"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reportId",
+          "reportName",
+          "ownerEmail",
+          "ownerSource",
+          "isOrphaned",
+          "refreshStatus",
+          "refreshFailureStreak",
+          "loadTimeSec",
+          "latencySeverity",
+          "lastObservedAt",
+          "monthlyActiveViews",
+          "queryCount30d",
+          "concurrentUserPeak",
+          "efficiencyQuadrant",
+          "activeAlerts",
+          "highestAlertSeverity",
+          "cost"
+        ],
+        "additionalProperties": false
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ]
+      },
+      "Severity": {
+        "type": "string",
+        "enum": [
+          "info",
+          "warning",
+          "high",
+          "critical"
+        ]
+      },
+      "SimulatorState": {
+        "type": "object",
+        "properties": {
+          "running": {
+            "type": "boolean"
+          },
+          "intervalMs": {
+            "type": "integer"
+          },
+          "eventsEmitted": {
+            "type": "integer"
+          },
+          "lastEventAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "running",
+          "intervalMs",
+          "eventsEmitted",
+          "lastEventAt"
+        ],
+        "additionalProperties": false
+      },
+      "SystemStatus": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "uptimeSec": {
+            "type": "number"
+          },
+          "demoMode": {
+            "type": "boolean"
+          },
+          "warehouse": {
+            "type": "object",
+            "properties": {
+              "dialect": {
+                "type": "string"
+              },
+              "builtAt": {
+                "type": "string"
+              },
+              "suiteDurationMs": {
+                "type": "integer"
+              },
+              "reconciliationPassed": {
+                "type": "integer"
+              },
+              "reconciliationTotal": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "dialect",
+              "builtAt",
+              "suiteDurationMs",
+              "reconciliationPassed",
+              "reconciliationTotal"
+            ],
+            "additionalProperties": false
+          },
+          "realtime": {
+            "type": "object",
+            "properties": {
+              "webSocketClients": {
+                "type": "integer"
+              },
+              "sseClients": {
+                "type": "integer"
+              },
+              "latestEventId": {
+                "type": "integer"
+              },
+              "bufferedEvents": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "webSocketClients",
+              "sseClients",
+              "latestEventId",
+              "bufferedEvents"
+            ],
+            "additionalProperties": false
+          },
+          "simulator": {
+            "$ref": "#/components/schemas/SimulatorState"
+          }
+        },
+        "required": [
+          "service",
+          "version",
+          "uptimeSec",
+          "demoMode",
+          "warehouse",
+          "realtime",
+          "simulator"
+        ],
+        "additionalProperties": false
+      },
+      "TelemetryIngestResponse": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "integer"
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "index",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "alertsFired": {
+            "type": "integer"
+          },
+          "alertsResolved": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted",
+          "rejected",
+          "alertsFired",
+          "alertsResolved"
+        ],
+        "additionalProperties": false
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "roleLabel": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "all",
+              "own"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "role",
+          "roleLabel",
+          "scope",
+          "permissions"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "x-rbac": {
+    "permissions": [
+      "reports:read",
+      "costs:read",
+      "chargeback:read",
+      "pii:read",
+      "orphans:read",
+      "orphans:assign",
+      "alerts:read",
+      "alerts:ack",
+      "alerts:snooze",
+      "alert-rules:read",
+      "alert-rules:write",
+      "dq:read",
+      "users:read",
+      "audit:read",
+      "telemetry:ingest",
+      "incidents:inject",
+      "simulator:control"
+    ],
+    "roles": {
+      "admin": {
+        "label": "Platform Admin",
+        "scope": "all",
+        "permissions": [
+          "reports:read",
+          "costs:read",
+          "chargeback:read",
+          "pii:read",
+          "orphans:read",
+          "orphans:assign",
+          "alerts:read",
+          "alerts:ack",
+          "alerts:snooze",
+          "alert-rules:read",
+          "alert-rules:write",
+          "dq:read",
+          "users:read",
+          "audit:read",
+          "telemetry:ingest",
+          "incidents:inject",
+          "simulator:control"
+        ]
+      },
+      "finops": {
+        "label": "FinOps Analyst",
+        "scope": "all",
+        "permissions": [
+          "reports:read",
+          "costs:read",
+          "chargeback:read",
+          "pii:read",
+          "orphans:read",
+          "alerts:read",
+          "alert-rules:read",
+          "dq:read"
+        ]
+      },
+      "owner": {
+        "label": "Report Owner",
+        "scope": "own",
+        "permissions": [
+          "reports:read",
+          "costs:read",
+          "pii:read",
+          "alerts:read",
+          "alerts:ack"
+        ]
+      },
+      "viewer": {
+        "label": "Viewer",
+        "scope": "all",
+        "permissions": [
+          "reports:read",
+          "alerts:read"
+        ]
+      }
+    }
+  }
+}

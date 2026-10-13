@@ -3,7 +3,12 @@ import { UserSchema } from './auth.js';
 import { IsoDateTimeSchema, PageQuerySchema, ReportIdSchema } from './common.js';
 
 export const UserListSchema = z.object({
-  items: z.array(UserSchema.extend({ reportsOwned: z.number().int(), lastLoginAt: IsoDateTimeSchema.nullable() })),
+  items: z.array(
+    UserSchema.extend({
+      reportsOwned: z.number().int(),
+      lastLoginAt: IsoDateTimeSchema.nullable(),
+    }),
+  ),
 });
 
 export const AuditEntrySchema = z

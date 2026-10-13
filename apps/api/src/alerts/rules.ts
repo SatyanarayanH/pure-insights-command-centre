@@ -120,7 +120,9 @@ export function evaluate(rule: AlertRule, obs: Observation): Evaluation | null {
         value: null,
         threshold: null,
         unit: null,
-        message: breach ? 'Refresh outcome was not reported (telemetry gap)' : 'Refresh outcome reported',
+        message: breach
+          ? 'Refresh outcome was not reported (telemetry gap)'
+          : 'Refresh outcome reported',
       };
     }
     case 'invalid_telemetry': {
@@ -142,4 +144,5 @@ export function evaluate(rule: AlertRule, obs: Observation): Evaluation | null {
   }
 }
 
-export const isMoreSevere = (a: Severity, b: Severity): boolean => SEVERITY_RANK[a] > SEVERITY_RANK[b];
+export const isMoreSevere = (a: Severity, b: Severity): boolean =>
+  SEVERITY_RANK[a] > SEVERITY_RANK[b];

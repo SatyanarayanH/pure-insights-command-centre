@@ -19,6 +19,9 @@ export const LOADER_FILES = {
   snowflake: 'loaders/snowflake_load.sql',
 } as const;
 
+/** Placeholders the loader scripts use for local file paths. */
+export const PLACEHOLDER = { rawCsv: '$' + '{RAW_CSV}', dataDir: '$' + '{DATA_DIR}' } as const;
+
 /** Splits a script into statements on `;`, ignoring semicolons inside string literals,
  *  quoted identifiers, line comments and block comments. */
 export function splitStatements(script: string): string[] {
@@ -91,7 +94,10 @@ export class ReconciliationError extends Error {
   constructor(readonly failures: ReconciliationRow[]) {
     super(
       `Reconciliation failed: ${failures
-        .map((f) => `${f.check_id} (${f.description}: expected ${f.expected_value}, got ${f.actual_value})`)
+        .map(
+          (f) =>
+            `${f.check_id} (${f.description}: expected ${f.expected_value}, got ${f.actual_value})`,
+        )
         .join('; ')}`,
     );
   }
@@ -105,7 +111,10 @@ export interface RunSuiteOptions {
 
 /** Runs setup, the dialect's loader, then the rest of the suite. Throws if any reconciliation
  *  check fails, so a warehouse that does not add up never reaches the application. */
-export async function runSqlSuite(warehouse: Warehouse, options: RunSuiteOptions): Promise<SuiteResult> {
+export async function runSqlSuite(
+  warehouse: Warehouse,
+  options: RunSuiteOptions,
+): Promise<SuiteResult> {
   const started = performance.now();
   const [setup, ...rest] = SUITE_FILES;
   const order = [setup, LOADER_FILES[warehouse.dialect], ...rest];
@@ -113,8 +122,8 @@ export async function runSqlSuite(warehouse: Warehouse, options: RunSuiteOptions
 
   for (const file of order) {
     const script = readFileSync(join(options.sqlDir, file), 'utf8')
-      .replaceAll('${RAW_CSV}', options.rawCsv)
-      .replaceAll('${DATA_DIR}', options.dataDir);
+      .replaceAll(PLACEHOLDER.rawCsv, options.rawCsv)
+      .replaceAll(PLACEHOLDER.dataDir, options.dataDir);
     const statements = splitStatements(script);
     const fileStarted = performance.now();
     for (const [index, statement] of statements.entries()) {
@@ -122,12 +131,19 @@ export async function runSqlSuite(warehouse: Warehouse, options: RunSuiteOptions
         await warehouse.exec(statement);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        throw new Error(`${file}, statement ${index + 1} of ${statements.length} failed: ${message}`, {
-          cause: error,
-        });
+        throw new Error(
+          `${file}, statement ${index + 1} of ${statements.length} failed: ${message}`,
+          {
+            cause: error,
+          },
+        );
       }
     }
-    files.push({ file, statements: statements.length, durationMs: Math.round(performance.now() - fileStarted) });
+    files.push({
+      file,
+      statements: statements.length,
+      durationMs: Math.round(performance.now() - fileStarted),
+    });
   }
 
   const reconciliation = await warehouse.query<ReconciliationRow & Record<string, unknown>>(

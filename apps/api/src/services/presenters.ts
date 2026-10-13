@@ -49,7 +49,11 @@ export function presentCost(principal: Principal, fact: CostColumns): ReportCost
   };
 }
 
-export function presentAlert(record: AlertRecord, principal: Principal, ctx: PresenterContext): Alert {
+export function presentAlert(
+  record: AlertRecord,
+  principal: Principal,
+  ctx: PresenterContext,
+): Alert {
   const owner = ctx.ownership.ownerOf(record.reportId);
   return {
     id: record.id,
@@ -84,7 +88,10 @@ export function presentAlert(record: AlertRecord, principal: Principal, ctx: Pre
   };
 }
 
-export function latencySeverityOf(loadTimeSec: number | null, rule: AlertRule | undefined): LatencySeverity {
+export function latencySeverityOf(
+  loadTimeSec: number | null,
+  rule: AlertRule | undefined,
+): LatencySeverity {
   if (loadTimeSec === null || !rule || rule.warningThreshold === null) return 'OK';
   if (rule.criticalThreshold !== null && loadTimeSec > rule.criticalThreshold) return 'CRITICAL';
   if (rule.highThreshold !== null && loadTimeSec > rule.highThreshold) return 'HIGH';
@@ -121,7 +128,11 @@ export function renderForRecipient(
     case 'alert.fired':
     case 'alert.resolved': {
       const { alert } = record.payload as AlertPayload;
-      return { ...envelope, type: record.type, data: { alert: presentAlert(alert, principal, ctx) } };
+      return {
+        ...envelope,
+        type: record.type,
+        data: { alert: presentAlert(alert, principal, ctx) },
+      };
     }
     case 'alert.updated': {
       const { alert, change } = record.payload as AlertPayload;

@@ -18,7 +18,12 @@ function findRepoRoot(): string {
 export const REPO_ROOT = findRepoRoot();
 export const SQL_DIR = join(REPO_ROOT, 'sql');
 export const DOCS_DIR = join(REPO_ROOT, 'docs');
-export const DEFAULT_RAW_CSV = join(REPO_ROOT, 'data', 'raw', 'Case_Study_3_Pure_Insights_Monitoring.csv');
+export const DEFAULT_RAW_CSV = join(
+  REPO_ROOT,
+  'data',
+  'raw',
+  'Case_Study_3_Pure_Insights_Monitoring.csv',
+);
 export const DEFAULT_GENERATED_DIR = join(REPO_ROOT, 'data', 'generated');
 export const DEFAULT_RUNTIME_DIR = join(REPO_ROOT, 'data', 'runtime');
 export const DEFAULT_WEB_DIST = join(REPO_ROOT, 'apps', 'web', 'dist');

@@ -56,9 +56,13 @@ export async function createTestContext(
     ...env,
   });
   let now = Date.parse('2026-10-13T09:00:00.000Z');
-  const container = createContainer(config, await getSnapshot(), { now: () => new Date(now), ...overrides });
+  const container = createContainer(config, await getSnapshot(), {
+    now: () => new Date(now),
+    ...overrides,
+  });
   const { app, routes } = createApp(container);
-  const auth = (test: request.Test, token?: string) => (token ? test.set('authorization', `Bearer ${token}`) : test);
+  const auth = (test: request.Test, token?: string) =>
+    token ? test.set('authorization', `Bearer ${token}`) : test;
 
   return {
     container,
@@ -69,12 +73,15 @@ export async function createTestContext(
     },
     login: async (email) => {
       const res = await request(app).post(`${API}/auth/demo-login`).send({ email });
-      if (res.status !== 200) throw new Error(`demo login failed for ${email}: ${res.status} ${res.text}`);
+      if (res.status !== 200)
+        throw new Error(`demo login failed for ${email}: ${res.status} ${res.text}`);
       return res.body.accessToken as string;
     },
     get: (path, token) => auth(request(app).get(`${API}${path}`), token),
-    post: (path, token, body = {}) => auth(request(app).post(`${API}${path}`), token).send(body as object),
-    put: (path, token, body = {}) => auth(request(app).put(`${API}${path}`), token).send(body as object),
+    post: (path, token, body = {}) =>
+      auth(request(app).post(`${API}${path}`), token).send(body as object),
+    put: (path, token, body = {}) =>
+      auth(request(app).put(`${API}${path}`), token).send(body as object),
     close: () => container.close(),
   };
 }

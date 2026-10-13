@@ -1,9 +1,15 @@
-import { PERMISSIONS, ProblemSchema, ROLE_DEFINITIONS, ROLES, SSE_PATH, WS_PATH } from '@picc/contracts';
+import {
+  PERMISSIONS,
+  ProblemSchema,
+  ROLE_DEFINITIONS,
+  ROLES,
+  SSE_PATH,
+  WS_PATH,
+} from '@picc/contracts';
 import type { z } from 'zod';
 import { API_PREFIX, SERVICE_VERSION } from '../config.js';
 import type { RouteDefinition } from '../http/registry.js';
 import { type Json, jsonSchemaOf, sortKeys } from './json-schema.js';
-
 
 /** `/reports/:reportId` -> `/reports/{reportId}` */
 const toOpenApiPath = (path: string): string => path.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
@@ -12,7 +18,10 @@ function parameters(route: RouteDefinition, components: Record<string, unknown>)
   const out: Json[] = [];
   const add = (schema: z.ZodType | undefined, location: 'path' | 'query') => {
     if (!schema) return;
-    const json = jsonSchemaOf(schema, 'input', components) as { properties?: Record<string, Json>; required?: string[] };
+    const json = jsonSchemaOf(schema, 'input', components) as {
+      properties?: Record<string, Json>;
+      required?: string[];
+    };
     for (const [name, property] of Object.entries(json.properties ?? {})) {
       const { description, ...rest } = property as Json & { description?: string };
       out.push({
@@ -42,25 +51,39 @@ export function buildOpenApi(routes: readonly RouteDefinition[]): Json {
 
   for (const route of routes) {
     const security =
-      route.auth === 'public' ? [] : route.auth === 'user-or-service' ? [{ apiKey: [] }, { bearerAuth: [] }] : [{ bearerAuth: [] }];
-    const roles = route.permission ? ROLES.filter((role) => ROLE_DEFINITIONS[role].permissions.includes(route.permission!)) : [];
+      route.auth === 'public'
+        ? []
+        : route.auth === 'user-or-service'
+          ? [{ apiKey: [] }, { bearerAuth: [] }]
+          : [{ bearerAuth: [] }];
+    const roles = route.permission
+      ? ROLES.filter((role) => ROLE_DEFINITIONS[role].permissions.includes(route.permission!))
+      : [];
     const access = [
       route.auth === 'public' ? 'Public.' : null,
-      route.permission ? `Requires permission \`${route.permission}\` (roles: ${roles.map((r) => ROLE_DEFINITIONS[r].label).join(', ')}).` : null,
+      route.permission
+        ? `Requires permission \`${route.permission}\` (roles: ${roles.map((r) => ROLE_DEFINITIONS[r].label).join(', ')}).`
+        : null,
       route.rowScoped ? 'Row-level security: Report Owners only see their own reports.' : null,
     ].filter(Boolean);
 
     const responses: Record<string, unknown> = {
       [String(route.status ?? 200)]: {
         description: 'Success',
-        content: { 'application/json': { schema: jsonSchemaOf(route.response, 'output', components) } },
+        content: {
+          'application/json': { schema: jsonSchemaOf(route.response, 'output', components) },
+        },
       },
     };
-    if (route.params || route.query || route.body) responses['400'] = problem('The request failed validation.');
-    if (route.auth !== 'public') responses['401'] = problem('Missing, invalid or expired credentials.');
+    if (route.params || route.query || route.body)
+      responses['400'] = problem('The request failed validation.');
+    if (route.auth !== 'public')
+      responses['401'] = problem('Missing, invalid or expired credentials.');
     if (route.permission) responses['403'] = problem('The caller lacks the required permission.');
-    if (route.params) responses['404'] = problem('Not found, or outside the caller\'s row-level scope.');
-    if (route.method !== 'get') responses['409'] = problem('The request conflicts with the current state.');
+    if (route.params)
+      responses['404'] = problem("Not found, or outside the caller's row-level scope.");
+    if (route.method !== 'get')
+      responses['409'] = problem('The request conflicts with the current state.');
     responses['429'] = problem('Rate limit exceeded.');
 
     const operation: Json = {
@@ -71,7 +94,9 @@ export function buildOpenApi(routes: readonly RouteDefinition[]): Json {
       security,
       parameters: parameters(route, components),
       responses,
-      ...(route.permission ? { 'x-required-permission': route.permission, 'x-allowed-roles': roles } : {}),
+      ...(route.permission
+        ? { 'x-required-permission': route.permission, 'x-allowed-roles': roles }
+        : {}),
       ...(route.rowScoped ? { 'x-row-level-security': true } : {}),
     };
     if (route.body) {
@@ -116,8 +141,18 @@ export function buildOpenApi(routes: readonly RouteDefinition[]): Json {
     paths,
     components: {
       securitySchemes: {
-        bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'Access token from `/auth/login`.' },
-        apiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key', description: 'Service key for the telemetry emitter.' },
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Access token from `/auth/login`.',
+        },
+        apiKey: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-API-Key',
+          description: 'Service key for the telemetry emitter.',
+        },
       },
       schemas: sortKeys(components),
     },

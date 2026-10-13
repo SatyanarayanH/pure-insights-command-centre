@@ -122,14 +122,34 @@ export class RealtimeGateway {
         ws.close(WS_CLOSE_CODES.UNAUTHORIZED.code, WS_CLOSE_CODES.UNAUTHORIZED.reason);
         return;
       }
-      this.onConnection(ws, principal, parseTopics(url.searchParams.get('topics')), parseEventId(url.searchParams.get('lastEventId')));
+      this.onConnection(
+        ws,
+        principal,
+        parseTopics(url.searchParams.get('topics')),
+        parseEventId(url.searchParams.get('lastEventId')),
+      );
     });
   }
 
-  private onConnection(socket: WebSocket, principal: Principal, topics: Set<Topic>, lastEventId: number | null): void {
-    const connection: WsConnection = { id: randomUUID(), socket, principal, topics, alive: true, openedAt: Date.now() };
+  private onConnection(
+    socket: WebSocket,
+    principal: Principal,
+    topics: Set<Topic>,
+    lastEventId: number | null,
+  ): void {
+    const connection: WsConnection = {
+      id: randomUUID(),
+      socket,
+      principal,
+      topics,
+      alive: true,
+      openedAt: Date.now(),
+    };
     this.ws.set(connection.id, connection);
-    this.logger.debug({ connectionId: connection.id, user: principal.email, lastEventId }, 'ws connected');
+    this.logger.debug(
+      { connectionId: connection.id, user: principal.email, lastEventId },
+      'ws connected',
+    );
 
     const send = (event: AnyServerEvent) => this.sendWs(connection, event);
     this.handshake(connection.id, principal, topics, lastEventId, send);
@@ -139,7 +159,9 @@ export class RealtimeGateway {
     });
     socket.on('message', (raw) => this.onMessage(connection, raw.toString()));
     socket.on('close', () => this.ws.delete(connection.id));
-    socket.on('error', (error) => this.logger.debug({ err: error, connectionId: connection.id }, 'ws error'));
+    socket.on('error', (error) =>
+      this.logger.debug({ err: error, connectionId: connection.id }, 'ws error'),
+    );
   }
 
   private onMessage(connection: WsConnection, raw: string): void {
@@ -148,14 +170,20 @@ export class RealtimeGateway {
     try {
       json = JSON.parse(raw);
     } catch {
-      this.sendWs(connection, this.local('error', { code: 'bad_json', message: 'Message is not valid JSON.' }));
+      this.sendWs(
+        connection,
+        this.local('error', { code: 'bad_json', message: 'Message is not valid JSON.' }),
+      );
       return;
     }
     const parsed = ClientMessageSchema.safeParse(json);
     if (!parsed.success) {
       this.sendWs(
         connection,
-        this.local('error', { code: 'bad_message', message: 'Unknown message type or invalid fields. See the AsyncAPI document.' }),
+        this.local('error', {
+          code: 'bad_message',
+          message: 'Unknown message type or invalid fields. See the AsyncAPI document.',
+        }),
       );
       return;
     }
@@ -189,13 +217,19 @@ export class RealtimeGateway {
     const now = Date.now();
     for (const connection of this.ws.values()) {
       if (!connection.alive) {
-        connection.socket.close(WS_CLOSE_CODES.HEARTBEAT_TIMEOUT.code, WS_CLOSE_CODES.HEARTBEAT_TIMEOUT.reason);
+        connection.socket.close(
+          WS_CLOSE_CODES.HEARTBEAT_TIMEOUT.code,
+          WS_CLOSE_CODES.HEARTBEAT_TIMEOUT.reason,
+        );
         connection.socket.terminate();
         this.ws.delete(connection.id);
         continue;
       }
       if (now - connection.openedAt > this.options.maxConnectionAgeMs) {
-        connection.socket.close(WS_CLOSE_CODES.UNAUTHORIZED.code, 'Session expired; reconnect with a new ticket');
+        connection.socket.close(
+          WS_CLOSE_CODES.UNAUTHORIZED.code,
+          'Session expired; reconnect with a new ticket',
+        );
         continue;
       }
       connection.alive = false;
@@ -207,7 +241,9 @@ export class RealtimeGateway {
   // ---- Server-Sent Events -----------------------------------------------------------------
 
   handleSse = (req: Request, res: Response): void => {
-    const principal = this.tickets.consume(typeof req.query.ticket === 'string' ? req.query.ticket : null);
+    const principal = this.tickets.consume(
+      typeof req.query.ticket === 'string' ? req.query.ticket : null,
+    );
     if (!principal) {
       res.status(401).type('application/problem+json').json({
         type: 'https://pure-insights.example/problems/unauthorized',
@@ -220,7 +256,10 @@ export class RealtimeGateway {
     }
     const topics = parseTopics(typeof req.query.topics === 'string' ? req.query.topics : null);
     // EventSource resends the last id it saw in this header when it reconnects on its own.
-    const lastEventId = parseEventId(req.get('last-event-id') ?? (typeof req.query.lastEventId === 'string' ? req.query.lastEventId : null));
+    const lastEventId = parseEventId(
+      req.get('last-event-id') ??
+        (typeof req.query.lastEventId === 'string' ? req.query.lastEventId : null),
+    );
 
     res.status(200).set({
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -233,7 +272,9 @@ export class RealtimeGateway {
 
     const connection: SseConnection = { id: randomUUID(), res, principal, topics };
     this.sse.set(connection.id, connection);
-    this.handshake(connection.id, principal, topics, lastEventId, (event) => this.sendSse(connection, event));
+    this.handshake(connection.id, principal, topics, lastEventId, (event) =>
+      this.sendSse(connection, event),
+    );
     req.on('close', () => this.sse.delete(connection.id));
   };
 
@@ -247,7 +288,13 @@ export class RealtimeGateway {
   // ---- shared -----------------------------------------------------------------------------
 
   private local<T extends ServerEventType>(type: T, data: ServerEventData<T>): AnyServerEvent {
-    return { v: PROTOCOL_VERSION, id: 0, type, ts: new Date().toISOString(), data } as AnyServerEvent;
+    return {
+      v: PROTOCOL_VERSION,
+      id: 0,
+      type,
+      ts: new Date().toISOString(),
+      data,
+    } as AnyServerEvent;
   }
 
   /** Greets a new connection and replays whatever it missed while it was away. */
@@ -306,7 +353,10 @@ export class RealtimeGateway {
     this.unsubscribe();
     if (this.heartbeat) clearInterval(this.heartbeat);
     for (const connection of this.ws.values()) {
-      connection.socket.close(WS_CLOSE_CODES.SERVER_SHUTDOWN.code, WS_CLOSE_CODES.SERVER_SHUTDOWN.reason);
+      connection.socket.close(
+        WS_CLOSE_CODES.SERVER_SHUTDOWN.code,
+        WS_CLOSE_CODES.SERVER_SHUTDOWN.reason,
+      );
     }
     for (const connection of this.sse.values()) connection.res.end();
     this.ws.clear();

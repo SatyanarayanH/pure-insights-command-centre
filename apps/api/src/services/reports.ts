@@ -11,7 +11,13 @@ import type { AlertService } from '../alerts/service.js';
 import { can, type Principal } from '../auth/principal.js';
 import { notFound } from '../http/errors.js';
 import type { ReportStateRepository } from '../opsdb/repositories.js';
-import { type DimRow, type EfficiencyRow, type FactRow, periodLabel, type WarehouseSnapshot } from '../warehouse/snapshot.js';
+import {
+  type DimRow,
+  type EfficiencyRow,
+  type FactRow,
+  periodLabel,
+  type WarehouseSnapshot,
+} from '../warehouse/snapshot.js';
 import type { OwnershipService } from './ownership.js';
 import { latencySeverityOf, presentCost, presentEmail } from './presenters.js';
 
@@ -59,7 +65,11 @@ export class ReportService {
     return this.snapshot.dim.filter((row) => allowed.has(row.report_id));
   }
 
-  private summarise(principal: Principal, row: DimRow, activeAlerts = this.alerts.activeByReport()): ReportSummary {
+  private summarise(
+    principal: Principal,
+    row: DimRow,
+    activeAlerts = this.alerts.activeByReport(),
+  ): ReportSummary {
     const state = this.state.get(row.report_id);
     const owner = this.ownership.ownerOf(row.report_id);
     const loadTimeSec = state?.loadTimeSec ?? row.avg_load_time_sec;
@@ -79,16 +89,23 @@ export class ReportService {
       monthlyActiveViews: row.monthly_active_views,
       queryCount30d: row.query_count_last_30d,
       concurrentUserPeak: row.concurrent_user_peak,
-      efficiencyQuadrant: can(principal, 'costs:read') ? (this.efficiency.get(row.report_id)?.efficiency_quadrant ?? null) : null,
+      efficiencyQuadrant: can(principal, 'costs:read')
+        ? (this.efficiency.get(row.report_id)?.efficiency_quadrant ?? null)
+        : null,
       activeAlerts: alertSummary?.count ?? 0,
       highestAlertSeverity: alertSummary?.highest ?? null,
       cost: presentCost(principal, row),
     };
   }
 
-  list(principal: Principal, query: ReportListQuery): { items: ReportSummary[]; total: number; page: number; pageSize: number } {
+  list(
+    principal: Principal,
+    query: ReportListQuery,
+  ): { items: ReportSummary[]; total: number; page: number; pageSize: number } {
     const activeAlerts = this.alerts.activeByReport();
-    let items = this.visibleDim(principal).map((row) => this.summarise(principal, row, activeAlerts));
+    let items = this.visibleDim(principal).map((row) =>
+      this.summarise(principal, row, activeAlerts),
+    );
 
     if (query.q) {
       const needle = query.q.toLowerCase();
@@ -100,15 +117,21 @@ export class ReportService {
       );
     }
     // Filter on the real address even when the caller only ever sees it masked.
-    if (query.owner) items = items.filter((r) => this.ownership.ownerOf(r.reportId).email === query.owner!.toLowerCase());
+    if (query.owner)
+      items = items.filter(
+        (r) => this.ownership.ownerOf(r.reportId).email === query.owner!.toLowerCase(),
+      );
     if (query.orphaned) items = items.filter((r) => r.isOrphaned === (query.orphaned === 'true'));
     if (query.refreshStatus) items = items.filter((r) => r.refreshStatus === query.refreshStatus);
-    if (query.latencySeverity) items = items.filter((r) => r.latencySeverity === query.latencySeverity);
+    if (query.latencySeverity)
+      items = items.filter((r) => r.latencySeverity === query.latencySeverity);
     if (query.quadrant) items = items.filter((r) => r.efficiencyQuadrant === query.quadrant);
-    if (query.hasAlerts) items = items.filter((r) => r.activeAlerts > 0 === (query.hasAlerts === 'true'));
+    if (query.hasAlerts)
+      items = items.filter((r) => r.activeAlerts > 0 === (query.hasAlerts === 'true'));
 
     const costSorts = new Set(['totalCostUsd', 'totalCostPerViewUsd']);
-    const sortField = costSorts.has(query.sort) && !can(principal, 'costs:read') ? 'reportId' : query.sort;
+    const sortField =
+      costSorts.has(query.sort) && !can(principal, 'costs:read') ? 'reportId' : query.sort;
     const key = (r: ReportSummary): string | number | null => {
       switch (sortField) {
         case 'totalCostUsd':
@@ -118,7 +141,14 @@ export class ReportService {
         case 'reportId':
           return Number(r.reportId.replace(/\D+/g, ''));
         default:
-          return r[sortField as 'ownerEmail' | 'loadTimeSec' | 'refreshFailureStreak' | 'monthlyActiveViews' | 'activeAlerts'];
+          return r[
+            sortField as
+              | 'ownerEmail'
+              | 'loadTimeSec'
+              | 'refreshFailureStreak'
+              | 'monthlyActiveViews'
+              | 'activeAlerts'
+          ];
       }
     };
     const direction = query.order === 'desc' ? -1 : 1;
@@ -127,12 +157,20 @@ export class ReportService {
       const kb = key(b);
       // Nulls last in either direction.
       if (ka === null || kb === null) return ka === kb ? 0 : ka === null ? 1 : -1;
-      const cmp = typeof ka === 'number' && typeof kb === 'number' ? ka - kb : String(ka).localeCompare(String(kb));
+      const cmp =
+        typeof ka === 'number' && typeof kb === 'number'
+          ? ka - kb
+          : String(ka).localeCompare(String(kb));
       return cmp * direction || a.reportId.localeCompare(b.reportId, undefined, { numeric: true });
     });
 
     const start = (query.page - 1) * query.pageSize;
-    return { items: items.slice(start, start + query.pageSize), total: items.length, page: query.page, pageSize: query.pageSize };
+    return {
+      items: items.slice(start, start + query.pageSize),
+      total: items.length,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
   }
 
   private observation(principal: Principal, fact: FactRow): PeriodObservation {
@@ -186,11 +224,20 @@ export class ReportService {
           assignedBy: presentEmail(principal, a.assignedBy)!,
         })),
       },
-      history: (this.factsByReport.get(reportId) ?? []).map((fact) => this.observation(principal, fact)),
+      history: (this.factsByReport.get(reportId) ?? []).map((fact) =>
+        this.observation(principal, fact),
+      ),
       alerts: this.alerts.activeForReport(principal, reportId),
       // Structural rules (every row is a "repeat", owners change constantly) are noise per report.
       findings: this.snapshot.dqFindings
-        .filter((f) => f.report_id === reportId && f.rule_id !== 'DQ-06' && f.rule_id !== 'DQ-07' && f.rule_id !== 'DQ-03' && f.rule_id !== 'DQ-11')
+        .filter(
+          (f) =>
+            f.report_id === reportId &&
+            f.rule_id !== 'DQ-06' &&
+            f.rule_id !== 'DQ-07' &&
+            f.rule_id !== 'DQ-03' &&
+            f.rule_id !== 'DQ-11',
+        )
         .map((f) => ({
           ruleId: f.rule_id,
           ruleName: ruleNames.get(f.rule_id) ?? f.rule_id,
@@ -221,13 +268,16 @@ export class ReportService {
     const facts = this.snapshot.facts.filter((f) => ids.has(f.report_id));
     const periods = [...new Set(facts.map((f) => f.period_seq))].sort((a, b) => a - b);
     const latestFacts = facts.filter((f) => f.period_seq === latestSeq);
-    const zombies = this.snapshot.efficiency.filter((e) => ids.has(e.report_id) && e.efficiency_quadrant === 'ZOMBIE');
+    const zombies = this.snapshot.efficiency.filter(
+      (e) => ids.has(e.report_id) && e.efficiency_quadrant === 'ZOMBIE',
+    );
 
     const attention = [...open]
       .sort(
         (a, b) =>
           SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] ||
-          Number(this.ownership.isOrphaned(b.reportId)) - Number(this.ownership.isOrphaned(a.reportId)) ||
+          Number(this.ownership.isOrphaned(b.reportId)) -
+            Number(this.ownership.isOrphaned(a.reportId)) ||
           b.occurrences - a.occurrences,
       )
       .filter((a, index, all) => all.findIndex((x) => x.reportId === a.reportId) === index)
@@ -251,7 +301,9 @@ export class ReportService {
         total: summaries.length,
         healthy: summaries.filter((s) => s.activeAlerts === 0 && !s.isOrphaned).length,
         orphaned: summaries.filter((s) => s.isOrphaned).length,
-        refreshFailing: summaries.filter((s) => s.refreshStatus === 'FAILED' || s.refreshStatus === 'TIMED_OUT').length,
+        refreshFailing: summaries.filter(
+          (s) => s.refreshStatus === 'FAILED' || s.refreshStatus === 'TIMED_OUT',
+        ).length,
         refreshUnknown: summaries.filter((s) => s.refreshStatus === 'UNKNOWN').length,
         slow: summaries.filter((s) => s.latencySeverity !== 'OK').length,
         critical: summaries.filter((s) => s.latencySeverity === 'CRITICAL').length,
@@ -271,8 +323,14 @@ export class ReportService {
         thresholdSec: threshold,
         distribution: [
           { bucket: `≤ ${threshold} s`, reports: loadTimes.filter((v) => v <= threshold).length },
-          { bucket: `${threshold}–${high} s`, reports: loadTimes.filter((v) => v > threshold && v <= high).length },
-          { bucket: `${high}–${critical} s`, reports: loadTimes.filter((v) => v > high && v <= critical).length },
+          {
+            bucket: `${threshold}–${high} s`,
+            reports: loadTimes.filter((v) => v > threshold && v <= high).length,
+          },
+          {
+            bucket: `${high}–${critical} s`,
+            reports: loadTimes.filter((v) => v > high && v <= critical).length,
+          },
           { bucket: `> ${critical} s`, reports: loadTimes.filter((v) => v > critical).length },
         ],
       },
@@ -284,7 +342,9 @@ export class ReportService {
           orphaned: inPeriod.filter((f) => f.is_orphaned).length,
           refreshFailures: inPeriod.filter((f) => f.is_refresh_failure).length,
           latencyBreaches: inPeriod.filter((f) => f.is_latency_breach).length,
-          medianLoadTimeSec: median(inPeriod.map((f) => f.avg_load_time_sec).filter((v): v is number => v !== null)),
+          medianLoadTimeSec: median(
+            inPeriod.map((f) => f.avg_load_time_sec).filter((v): v is number => v !== null),
+          ),
           totalCostUsd: showCost ? sum(inPeriod.map((f) => f.total_cost_usd)) : null,
         };
       }),
@@ -298,7 +358,9 @@ export class ReportService {
               return views > 0 ? sum(latestFacts.map((f) => f.total_cost_usd)) / views : null;
             })(),
             orphanedCostUsd: sum(
-              latestFacts.filter((f) => this.ownership.isOrphaned(f.report_id)).map((f) => f.total_cost_usd),
+              latestFacts
+                .filter((f) => this.ownership.isOrphaned(f.report_id))
+                .map((f) => f.total_cost_usd),
             ),
             zombieRunRateUsd: sum(zombies.map((z) => z.run_rate_total_cost_usd)),
             zombieReports: zombies.length,

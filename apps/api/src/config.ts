@@ -1,7 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { DEFAULT_GENERATED_DIR, DEFAULT_RAW_CSV, DEFAULT_RUNTIME_DIR, DEFAULT_WEB_DIST } from './paths.js';
+import {
+  DEFAULT_GENERATED_DIR,
+  DEFAULT_RAW_CSV,
+  DEFAULT_RUNTIME_DIR,
+  DEFAULT_WEB_DIST,
+} from './paths.js';
 
 const bool = (fallback: boolean) =>
   z
@@ -12,7 +17,10 @@ const bool = (fallback: boolean) =>
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().default('0.0.0.0'),
-  PORT: z.coerce.number().int().default(4000),
+  /** API_PORT always wins. PORT is honoured only in production, where the platform assigns it;
+   *  in development PORT usually belongs to the front-end dev server. */
+  API_PORT: z.coerce.number().int().optional(),
+  PORT: z.coerce.number().int().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 
   /** Signing key for access tokens. Required in production; generated per process otherwise. */
@@ -26,6 +34,8 @@ const EnvSchema = z.object({
   INGEST_API_KEY: z.string().min(16).default('demo-ingest-key-change-me'),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  /** Set when served over TLS: adds upgrade-insecure-requests and marks cookies Secure. */
+  FORCE_HTTPS: bool(false),
 
   RAW_CSV: z.string().default(DEFAULT_RAW_CSV),
   GENERATED_DIR: z.string().default(DEFAULT_GENERATED_DIR),
@@ -46,7 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   return {
     env: parsed.NODE_ENV,
     host: parsed.HOST,
-    port: parsed.PORT,
+    port: parsed.API_PORT ?? (parsed.NODE_ENV === 'production' ? parsed.PORT : undefined) ?? 4000,
     logLevel: parsed.LOG_LEVEL,
     jwtSecret: parsed.JWT_SECRET ?? randomBytes(48).toString('base64url'),
     jwtSecretIsEphemeral: !parsed.JWT_SECRET,
@@ -55,7 +65,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     demoMode: parsed.DEMO_MODE,
     demoPassword: parsed.DEMO_PASSWORD,
     ingestApiKey: parsed.INGEST_API_KEY,
-    corsOrigins: parsed.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean),
+    forceHttps: parsed.FORCE_HTTPS,
+    corsOrigins: parsed.CORS_ORIGIN.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
     rawCsv: parsed.RAW_CSV,
     generatedDir: parsed.GENERATED_DIR,
     opsDb: parsed.OPS_DB,

@@ -11,4 +11,6 @@ export default defineConfig({
   // The contracts workspace ships TypeScript source, so it is bundled; everything else
   // stays external and is resolved from node_modules at runtime.
   noExternal: ['@picc/contracts'],
+  // `node:sqlite` only exists under its prefixed name, so the prefix must survive bundling.
+  removeNodeProtocol: false,
 });

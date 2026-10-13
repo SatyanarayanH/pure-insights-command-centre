@@ -34,7 +34,12 @@ export class UserRepository {
       `INSERT INTO users (id, email, name, role, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET email = excluded.email, name = excluded.name, role = excluded.role,
          password_hash = excluded.password_hash`,
-      user.id, user.email, user.name, user.role, user.password_hash, user.created_at,
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+      user.password_hash,
+      user.created_at,
     );
   }
 
@@ -90,7 +95,12 @@ export class ReportStateRepository {
        ON CONFLICT(report_id) DO UPDATE SET load_time_sec = excluded.load_time_sec,
          refresh_status = excluded.refresh_status, refresh_failure_streak = excluded.refresh_failure_streak,
          observed_at = excluded.observed_at, source = excluded.source`,
-      state.reportId, state.loadTimeSec, state.refreshStatus, state.refreshFailureStreak, state.observedAt, state.source,
+      state.reportId,
+      state.loadTimeSec,
+      state.refreshStatus,
+      state.refreshFailureStreak,
+      state.observedAt,
+      state.source,
     );
   }
 }
@@ -119,12 +129,17 @@ export class OwnerAssignmentRepository {
   constructor(private readonly db: OpsDb) {}
 
   all(): OwnerAssignment[] {
-    return this.db.all<AssignmentRow>('SELECT * FROM owner_assignments ORDER BY id').map(toAssignment);
+    return this.db
+      .all<AssignmentRow>('SELECT * FROM owner_assignments ORDER BY id')
+      .map(toAssignment);
   }
 
   forReport(reportId: string): OwnerAssignment[] {
     return this.db
-      .all<AssignmentRow>('SELECT * FROM owner_assignments WHERE report_id = ? ORDER BY id DESC', reportId)
+      .all<AssignmentRow>(
+        'SELECT * FROM owner_assignments WHERE report_id = ? ORDER BY id DESC',
+        reportId,
+      )
       .map(toAssignment);
   }
 
@@ -132,7 +147,12 @@ export class OwnerAssignmentRepository {
     const { lastInsertRowid } = this.db.run(
       `INSERT INTO owner_assignments (report_id, owner_email, previous_owner_email, assigned_by, assigned_at, note)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      a.reportId, a.ownerEmail, a.previousOwnerEmail, a.assignedBy, a.assignedAt, a.note,
+      a.reportId,
+      a.ownerEmail,
+      a.previousOwnerEmail,
+      a.assignedBy,
+      a.assignedAt,
+      a.note,
     );
     return { ...a, id: lastInsertRowid };
   }
@@ -171,18 +191,27 @@ export class AuditLog {
     this.db.run(
       `INSERT INTO audit_log (at, actor, actor_role, action, target_type, target_id, detail, request_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      this.now().toISOString(), entry.actor, entry.actorRole, entry.action, entry.targetType, entry.targetId,
-      JSON.stringify(entry.detail ?? {}), entry.requestId ?? null,
+      this.now().toISOString(),
+      entry.actor,
+      entry.actorRole,
+      entry.action,
+      entry.targetType,
+      entry.targetId,
+      JSON.stringify(entry.detail ?? {}),
+      entry.requestId ?? null,
     );
   }
 
   list(page: number, pageSize: number, action?: string): { items: AuditEntry[]; total: number } {
     const where = action ? 'WHERE action = ?' : '';
     const params = action ? [action] : [];
-    const total = this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM audit_log ${where}`, ...params)?.n ?? 0;
+    const total =
+      this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM audit_log ${where}`, ...params)?.n ?? 0;
     const rows = this.db.all<AuditRow>(
       `SELECT * FROM audit_log ${where} ORDER BY id DESC LIMIT ? OFFSET ?`,
-      ...params, pageSize, (page - 1) * pageSize,
+      ...params,
+      pageSize,
+      (page - 1) * pageSize,
     );
     return {
       total,

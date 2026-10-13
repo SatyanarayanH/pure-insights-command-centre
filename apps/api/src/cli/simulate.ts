@@ -10,4 +10,6 @@ const { manifest } = ensureSimulation(
   true,
 );
 console.log(JSON.stringify(manifest, null, 2));
-console.log(`Simulated in ${Math.round(performance.now() - started)} ms -> ${DEFAULT_GENERATED_DIR}`);
+console.log(
+  `Simulated in ${Math.round(performance.now() - started)} ms -> ${DEFAULT_GENERATED_DIR}`,
+);

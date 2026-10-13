@@ -53,7 +53,8 @@ export class AlertEngine {
 
     if (ev.breach) {
       if (open) return this.recordOccurrence(open, obs, ev);
-      if (latest && latest.obsSinceResolved < REOPEN_WITHIN_OBSERVATIONS) return this.reopen(latest, obs, ev);
+      if (latest && latest.obsSinceResolved < REOPEN_WITHIN_OBSERVATIONS)
+        return this.reopen(latest, obs, ev);
       return this.open(rule, fingerprint, obs, ev);
     }
 
@@ -70,7 +71,12 @@ export class AlertEngine {
     return null;
   }
 
-  private open(rule: AlertRule, fingerprint: string, obs: Observation, ev: Evaluation): EngineEvent {
+  private open(
+    rule: AlertRule,
+    fingerprint: string,
+    obs: Observation,
+    ev: Evaluation,
+  ): EngineEvent {
     const alert: AlertRecord = {
       id: randomUUID(),
       fingerprint,
@@ -97,7 +103,15 @@ export class AlertEngine {
       seq: this.alerts.nextSeq(),
     };
     this.alerts.insert(alert);
-    this.alerts.addEvent(alert.id, 'fired', obs.observedAt, 'system', ev.severity, ev.value, ev.message);
+    this.alerts.addEvent(
+      alert.id,
+      'fired',
+      obs.observedAt,
+      'system',
+      ev.severity,
+      ev.value,
+      ev.message,
+    );
     return { type: 'fired', alert };
   }
 
@@ -113,11 +127,27 @@ export class AlertEngine {
     this.alerts.update(alert);
 
     if (isMoreSevere(ev.severity, previous)) {
-      this.alerts.addEvent(alert.id, 'escalated', obs.observedAt, 'system', ev.severity, ev.value, `${previous} -> ${ev.severity}`);
+      this.alerts.addEvent(
+        alert.id,
+        'escalated',
+        obs.observedAt,
+        'system',
+        ev.severity,
+        ev.value,
+        `${previous} -> ${ev.severity}`,
+      );
       return { type: 'updated', change: 'escalated', alert };
     }
     if (isMoreSevere(previous, ev.severity)) {
-      this.alerts.addEvent(alert.id, 'deescalated', obs.observedAt, 'system', ev.severity, ev.value, `${previous} -> ${ev.severity}`);
+      this.alerts.addEvent(
+        alert.id,
+        'deescalated',
+        obs.observedAt,
+        'system',
+        ev.severity,
+        ev.value,
+        `${previous} -> ${ev.severity}`,
+      );
       return { type: 'updated', change: 'deescalated', alert };
     }
     return { type: 'updated', change: 'occurrence', alert };
@@ -139,7 +169,15 @@ export class AlertEngine {
     alert.threshold = ev.threshold;
     alert.message = ev.message;
     this.alerts.update(alert);
-    this.alerts.addEvent(alert.id, 'reopened', obs.observedAt, 'system', ev.severity, ev.value, `Reopened (${alert.reopenCount}x)`);
+    this.alerts.addEvent(
+      alert.id,
+      'reopened',
+      obs.observedAt,
+      'system',
+      ev.severity,
+      ev.value,
+      `Reopened (${alert.reopenCount}x)`,
+    );
     return { type: 'updated', change: 'reopened', alert };
   }
 
@@ -149,7 +187,15 @@ export class AlertEngine {
     alert.obsSinceResolved = 0;
     alert.snoozedUntil = null;
     this.alerts.update(alert);
-    this.alerts.addEvent(alert.id, 'resolved', obs.observedAt, 'system', alert.severity, ev.value, ev.message);
+    this.alerts.addEvent(
+      alert.id,
+      'resolved',
+      obs.observedAt,
+      'system',
+      alert.severity,
+      ev.value,
+      ev.message,
+    );
     return { type: 'resolved', alert };
   }
 }
