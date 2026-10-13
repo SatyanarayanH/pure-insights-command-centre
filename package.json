@@ -1,0 +1,39 @@
+{
+  "name": "pure-insights-command-centre",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Operational admin dashboard for the Pure Insights analytics portal: report health, ownership, real-time alerting and Snowflake cost attribution.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @picc/api\" \"npm run dev -w @picc/web\"",
+    "build": "npm run build -w @picc/web && npm run build -w @picc/api",
+    "start": "npm run start -w @picc/api",
+    "test": "node --import tsx --test --test-reporter=spec \"apps/api/test/**/*.test.ts\" \"packages/contracts/test/**/*.test.ts\"",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -b",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "simulate": "npm run simulate -w @picc/api",
+    "sql:duckdb": "npm run sql:duckdb -w @picc/api",
+    "docs:generate": "npm run docs:generate -w @picc/api",
+    "docs:pdf": "node tools/build-spec-pdf.mjs",
+    "reset": "node tools/reset.mjs",
+    "package": "node tools/package-submission.mjs",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run sql:duckdb"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@playwright/test": "^1.64.0",
+    "concurrently": "^9.2.1",
+    "marked": "^18.1.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

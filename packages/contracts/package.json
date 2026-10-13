@@ -1,0 +1,13 @@
+{
+  "name": "@picc/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared zod schemas for the REST API and the real-time protocol. Single source of truth for types, validation, OpenAPI and AsyncAPI.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}
