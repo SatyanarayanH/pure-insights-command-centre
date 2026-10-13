@@ -48,6 +48,9 @@ export interface Observation {
   /** Consecutive failed refreshes including this one. Maintained by the telemetry service. */
   refreshFailureStreak?: number;
   creditsConsumed?: number;
+  /** Minutes since the report was last heard from. 0 on every real reading; above 0 only on
+   *  the synthetic observation the staleness monitor raises when a report has gone quiet. */
+  silentForMin?: number;
   source: AlertSource;
 }
 

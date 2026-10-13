@@ -32,7 +32,10 @@
     "warehouse:build": "npm run warehouse:build -w @picc/api",
     "sql:snowflake": "npm install --prefix tools/snowflake --no-audit --no-fund && tsx tools/snowflake/run.ts",
     "demo:gif": "DEMO_GIF=1 playwright test e2e/demo-gif.spec.ts",
-    "submission:pdf": "node tools/build-submission-pdf.mjs"
+    "submission:pdf": "node tools/build-submission-pdf.mjs",
+    "load-test": "tsx tools/load-test.ts",
+    "verify:scale-out": "tsx tools/verify-scale-out.ts",
+    "snowflake:live-read": "npm install --prefix tools/snowflake --no-audit --no-fund && tsx tools/snowflake/live-read.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

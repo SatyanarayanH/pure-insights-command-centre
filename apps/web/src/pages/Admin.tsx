@@ -1,15 +1,17 @@
 import {
   type AlertRule,
   type AuditEntry,
+  type Notification,
   PERMISSIONS,
   ROLE_DEFINITIONS,
   ROLES,
   type SimulatorState,
   type SystemStatus,
   type User,
+  type WarehouseRefreshResult,
 } from '@picc/contracts';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Pause, Play } from 'lucide-react';
+import { Check, Pause, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { IncidentButtons } from '../components/actions';
 import { RefreshBadge } from '../components/status';
@@ -37,7 +39,7 @@ import { api, query } from '../lib/api';
 import { fmtAgo, fmtDateTime, fmtSec } from '../lib/format';
 import { useRealtime } from '../realtime/RealtimeProvider';
 
-type Tab = 'live' | 'rules' | 'access' | 'audit';
+type Tab = 'live' | 'rules' | 'notifications' | 'access' | 'audit';
 
 function LiveTab() {
   const queryClient = useQueryClient();
@@ -57,6 +59,10 @@ function LiveTab() {
     mutationFn: (body: { running?: boolean; intervalMs?: number }) =>
       api.put<SimulatorState>('/admin/simulator', body),
     onSuccess: (data) => queryClient.setQueryData(['simulator'], data),
+  });
+  const refresh = useMutation({
+    mutationFn: () => api.post<WarehouseRefreshResult>('/admin/warehouse/refresh', {}),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['system-status'] }),
   });
 
   // The raw telemetry feed is high volume, so it is subscribed to only while this tab is open.
@@ -139,29 +145,86 @@ function LiveTab() {
           </QueryBoundary>
         </Card>
 
-        <Card title="System status">
+        <Card
+          title="System status"
+          actions={
+            <Button busy={refresh.isPending} onClick={() => refresh.mutate()}>
+              <RefreshCw size={14} /> Refresh warehouse
+            </Button>
+          }
+        >
           <QueryBoundary query={status}>
             {(s) => (
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px]">
-                {[
-                  ['Service', `${s.service} ${s.version}`],
-                  ['Uptime', `${Math.floor(s.uptimeSec / 60)} min`],
-                  [
-                    'Warehouse',
-                    `${s.warehouse.dialect} · ${s.warehouse.reconciliationPassed}/${s.warehouse.reconciliationTotal} checks pass`,
-                  ],
-                  ['Warehouse built', fmtDateTime(s.warehouse.builtAt)],
-                  ['WebSocket clients', String(s.realtime.webSocketClients)],
-                  ['SSE clients', String(s.realtime.sseClients)],
-                  ['Latest event id', `#${s.realtime.latestEventId}`],
-                  ['Replay buffer', `${s.realtime.bufferedEvents} events`],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-[12px] text-ink-3">{label}</dt>
-                    <dd className="tnum text-ink">{value}</dd>
+              <>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px]">
+                  {[
+                    ['Service', `${s.service} ${s.version}`],
+                    ['Uptime', `${Math.floor(s.uptimeSec / 60)} min`],
+                    [
+                      'Warehouse',
+                      `${s.warehouse.source} · ${s.warehouse.reconciliationPassed}/${s.warehouse.reconciliationTotal} checks pass`,
+                    ],
+                    ['Warehouse built', fmtDateTime(s.warehouse.builtAt)],
+                    [
+                      'Scheduled refresh',
+                      s.warehouse.refreshEveryMin > 0
+                        ? `every ${s.warehouse.refreshEveryMin} min`
+                        : 'off (on demand)',
+                    ],
+                    [
+                      'Last refresh',
+                      s.warehouse.lastRefreshAt
+                        ? `${s.warehouse.lastRefreshOutcome} · ${fmtAgo(s.warehouse.lastRefreshAt)}`
+                        : 'not since start',
+                    ],
+                    [
+                      'Telemetry feed',
+                      s.telemetry.feedSilent
+                        ? 'silent'
+                        : `receiving · last ${fmtAgo(s.telemetry.lastReceivedAt)}`,
+                    ],
+                    [
+                      'Readings stored',
+                      `${s.telemetry.observationsStored.toLocaleString()} · kept ${s.telemetry.retentionDays} days`,
+                    ],
+                    [
+                      'Notifications',
+                      s.notifications.channel === 'webhook'
+                        ? `webhook · from ${s.notifications.minSeverity}`
+                        : 'recorded only (no webhook set)',
+                    ],
+                    ['Escalate if unacknowledged', `after ${s.notifications.escalateAfterMin} min`],
+                    ['WebSocket clients', String(s.realtime.webSocketClients)],
+                    ['SSE clients', String(s.realtime.sseClients)],
+                    ['Latest event id', `#${s.realtime.latestEventId}`],
+                    ['Replay buffer', `${s.realtime.bufferedEvents} events`],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-[12px] text-ink-3">{label}</dt>
+                      <dd className="tnum text-ink">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {refresh.data && (
+                  <div className="mt-4">
+                    <Note tone={refresh.data.outcome === 'failed' ? 'warning' : 'neutral'}>
+                      {refresh.data.outcome === 'refreshed'
+                        ? `New data is live (read in ${refresh.data.durationMs} ms).`
+                        : refresh.data.outcome === 'unchanged'
+                          ? 'The warehouse has not changed since it was last read.'
+                          : `Refresh failed; the previous data stays in service. ${refresh.data.error ?? ''}`}
+                    </Note>
                   </div>
-                ))}
-              </dl>
+                )}
+                {s.warehouse.lastRefreshError && !refresh.data && (
+                  <div className="mt-4">
+                    <Note tone="warning">
+                      The last refresh failed, so figures are as of{' '}
+                      {fmtDateTime(s.warehouse.builtAt)}. {s.warehouse.lastRefreshError}
+                    </Note>
+                  </div>
+                )}
+              </>
             )}
           </QueryBoundary>
         </Card>
@@ -236,6 +299,9 @@ function RuleEditor({ rule }: { rule: AlertRule }) {
             }
           : {}),
         ...(rule.id === 'refresh_failure' ? { escalateAfter: draft.escalateAfter } : {}),
+        ...(rule.id === 'telemetry_stale'
+          ? { warningThreshold: draft.warningThreshold, highThreshold: draft.highThreshold }
+          : {}),
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['alert-rules'] });
@@ -292,6 +358,8 @@ function RuleEditor({ rule }: { rule: AlertRule }) {
         {rule.id === 'latency' && field('High above', 'highThreshold', 's')}
         {rule.id === 'latency' && field('Critical above', 'criticalThreshold', 's')}
         {rule.id === 'refresh_failure' && field('Critical after', 'escalateAfter', 'in a row')}
+        {rule.id === 'telemetry_stale' && field('Warning after', 'warningThreshold', 'min silent')}
+        {rule.id === 'telemetry_stale' && field('High after', 'highThreshold', 'min silent')}
         {field('Clear after', 'resolveAfter', 'healthy')}
         <Button
           variant="primary"
@@ -499,13 +567,123 @@ function AuditTab() {
   );
 }
 
+const NOTIFICATION_TONE = {
+  sent: 'good',
+  pending: 'warning',
+  failed: 'critical',
+  skipped: 'neutral',
+} as const;
+
+function NotificationsTab() {
+  const [page, setPage] = useState(1);
+  const status = useQuery({
+    queryKey: ['system-status'],
+    queryFn: () => api.get<SystemStatus>('/system/status'),
+  });
+  const notifications = useQuery({
+    queryKey: ['notifications', page],
+    queryFn: () =>
+      api.get<{ items: Notification[]; total: number; page: number; pageSize: number }>(
+        `/notifications${query({ page, pageSize: 20 })}`,
+      ),
+    placeholderData: keepPreviousData,
+    refetchInterval: 10_000,
+  });
+  const policy = status.data?.notifications;
+  return (
+    <div className="space-y-5">
+      {policy && (
+        <Note tone={policy.channel === 'none' ? 'warning' : 'neutral'}>
+          {policy.channel === 'none' ? (
+            <>
+              <span className="font-medium">No delivery channel is configured.</span> Notifications
+              are decided and recorded below but not sent. Set{' '}
+              <span className="font-mono text-[12.5px]">NOTIFY_WEBHOOK_URL</span> to a Slack, Teams
+              or other incoming-webhook address to deliver them.
+            </>
+          ) : (
+            <>
+              Delivering by webhook. {policy.sent.toLocaleString()} sent, {policy.pending} waiting,{' '}
+              {policy.failed} failed.
+            </>
+          )}{' '}
+          Alerts notify from <span className="font-medium">{policy.minSeverity}</span> severity up,
+          go to the report's owner or to the platform admins when it has none, and escalate to the
+          admins if nobody acknowledges within {policy.escalateAfterMin} minutes.
+        </Note>
+      )}
+      <Card
+        title="Notifications"
+        subtitle="One per alert opening, escalation and resolution; never repeated"
+        flush
+      >
+        <QueryBoundary query={notifications}>
+          {(data) =>
+            data.items.length === 0 ? (
+              <Empty
+                title="No notifications yet"
+                hint="Inject a refresh failure from Live & incidents to see one."
+              />
+            ) : (
+              <>
+                <ScrollArea label="Notifications" className="overflow-x-auto">
+                  <TableShell>
+                    <thead>
+                      <tr>
+                        <th className={th}>When</th>
+                        <th className={th}>What</th>
+                        <th className={th}>To</th>
+                        <th className={th}>Delivery</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.items.map((n) => (
+                        <tr key={n.id}>
+                          <td className={`${td} tnum whitespace-nowrap text-ink-2`}>
+                            {fmtDateTime(n.createdAt)}
+                          </td>
+                          <td className={td}>
+                            <div className="font-medium text-ink">{n.title}</div>
+                            <div className="max-w-xl truncate text-[12.5px] text-ink-2">
+                              {n.body.split('\n')[0]}
+                            </div>
+                          </td>
+                          <td className={`${td} whitespace-nowrap text-ink-2`}>{n.recipient}</td>
+                          <td className={`${td} whitespace-nowrap`}>
+                            <Badge tone={NOTIFICATION_TONE[n.status]}>{n.status}</Badge>
+                            {n.lastError && (
+                              <div className="mt-0.5 text-[12px] text-ink-3" title={n.lastError}>
+                                attempt {n.attempts}: {n.lastError.slice(0, 40)}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </TableShell>
+                </ScrollArea>
+                <Pager
+                  page={data.page}
+                  pageSize={data.pageSize}
+                  total={data.total}
+                  onPage={setPage}
+                />
+              </>
+            )
+          }
+        </QueryBoundary>
+      </Card>
+    </div>
+  );
+}
+
 export function AdminPage() {
   const [tab, setTab] = useState<Tab>('live');
   return (
     <>
       <PageHeader
         title="Admin"
-        description="Simulate incidents, tune alert rules, review who can do what, and read the audit trail."
+        description="Simulate incidents, tune alert rules, see who was notified, review who can do what, and read the audit trail."
         actions={
           <Segmented<Tab>
             label="Admin section"
@@ -514,6 +692,7 @@ export function AdminPage() {
             options={[
               { value: 'live', label: 'Live & incidents' },
               { value: 'rules', label: 'Alert rules' },
+              { value: 'notifications', label: 'Notifications' },
               { value: 'access', label: 'Access' },
               { value: 'audit', label: 'Audit log' },
             ]}
@@ -523,6 +702,7 @@ export function AdminPage() {
       <div className={cx(tab !== 'live' && 'max-w-5xl')}>
         {tab === 'live' && <LiveTab />}
         {tab === 'rules' && <RulesTab />}
+        {tab === 'notifications' && <NotificationsTab />}
         {tab === 'access' && <AccessTab />}
         {tab === 'audit' && <AuditTab />}
       </div>

@@ -42,6 +42,8 @@ export default defineConfig({
       LOG_LEVEL: 'warn',
       DEMO_MODE: 'true',
       SIMULATOR_ENABLED: 'false',
+      // With no simulator there is no feed; keep the "no telemetry" banner out of these runs.
+      FEED_SILENT_AFTER_SEC: '86400',
       OPS_DB: join(tmpdir(), `picc-e2e-${Date.now()}.sqlite`),
       JWT_SECRET: 'e2e-secret-e2e-secret-e2e-secret-0123456789',
     },

@@ -29,6 +29,8 @@ export const PERMISSIONS = [
   'telemetry:ingest',
   'incidents:inject',
   'simulator:control',
+  'notifications:read',
+  'warehouse:refresh',
 ] as const;
 export const PermissionSchema = z.enum(PERMISSIONS).meta({ id: 'Permission' });
 export type Permission = z.infer<typeof PermissionSchema>;

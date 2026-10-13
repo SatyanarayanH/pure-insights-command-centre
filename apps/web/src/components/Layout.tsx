@@ -1,4 +1,4 @@
-import type { AlertStats, OrphanQueue, Permission } from '@picc/contracts';
+import type { AlertStats, OrphanQueue, Permission, SystemStatus } from '@picc/contracts';
 import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
@@ -11,6 +11,7 @@ import {
   Moon,
   Settings,
   Sun,
+  TriangleAlert,
   UserX,
   Wifi,
   WifiOff,
@@ -20,6 +21,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../lib/api';
+import { fmtDateTime } from '../lib/format';
 import { type Toast, useRealtime } from '../realtime/RealtimeProvider';
 import { cx } from './ui';
 
@@ -175,7 +177,16 @@ export function Layout() {
     queryFn: () => api.get<OrphanQueue>('/orphans'),
     enabled: can('orphans:read'),
   });
+  // Shared with the Admin page (same query key). A dashboard that has stopped receiving data
+  // looks exactly like a healthy one, so everyone is told, on every page.
+  const status = useQuery({
+    queryKey: ['system-status'],
+    queryFn: () => api.get<SystemStatus>('/system/status'),
+    enabled: can('reports:read'),
+    refetchInterval: 30_000,
+  });
   if (!user) return null;
+  const feed = status.data?.telemetry;
 
   const badgeFor = (item: NavItem): number | null =>
     item.badge === 'alerts'
@@ -289,6 +300,20 @@ export function Layout() {
           </div>
         </header>
         <main className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 px-3 py-5 sm:px-6 sm:py-6">
+          {feed?.feedSilent && (
+            <div
+              role="status"
+              className="mb-4 flex items-start gap-2.5 rounded-lg bg-warning-wash px-3.5 py-2.5 text-[13.5px] text-warning-ink"
+            >
+              <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+              <span>
+                <span className="font-medium">No telemetry is arriving.</span> Nothing has been
+                received from any report since{' '}
+                {feed.lastReceivedAt ? fmtDateTime(feed.lastReceivedAt) : 'this server started'}.
+                Health shown here is as of the last reading, not now.
+              </span>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

@@ -178,7 +178,9 @@ function Rules() {
                         ? 'FAILED or TIMED_OUT'
                         : rule.id === 'refresh_unknown'
                           ? 'status UNKNOWN'
-                          : 'credits < 0'}
+                          : rule.id === 'telemetry_stale'
+                            ? `no reading for > ${rule.warningThreshold} min`
+                            : 'credits < 0'}
                   </td>
                   <td className={`${td} whitespace-nowrap text-ink-2`}>
                     {rule.id === 'latency'
@@ -187,7 +189,9 @@ function Rules() {
                         ? `high · critical from ${rule.escalateAfter} in a row`
                         : rule.id === 'refresh_unknown'
                           ? 'info'
-                          : 'warning'}
+                          : rule.id === 'telemetry_stale'
+                            ? `warning · high > ${rule.highThreshold} min`
+                            : 'warning'}
                   </td>
                   <td className={`${td} whitespace-nowrap text-ink-2`}>
                     {rule.resolveAfter} healthy observation{rule.resolveAfter > 1 ? 's' : ''}
@@ -305,6 +309,7 @@ export function AlertsPage() {
               <option value="refresh_failure">Refresh failed</option>
               <option value="refresh_unknown">Refresh unknown</option>
               <option value="invalid_telemetry">Invalid telemetry</option>
+              <option value="telemetry_stale">No telemetry</option>
             </Select>
             <Select
               aria-label="Routing"

@@ -57,6 +57,19 @@ export const DEFAULT_ALERT_RULES: readonly RuleDefaults[] = [
     escalateAfter: null,
     resolveAfter: 1,
   },
+  {
+    id: 'telemetry_stale',
+    name: 'No telemetry received',
+    description:
+      'A report has sent no reading for longer than the warning threshold, in minutes, while the rest of the feed is arriving. Silence is not health: without this rule a report whose emitter has stopped would look fine for ever. Clears on the next reading.',
+    enabled: true,
+    inBrief: false,
+    warningThreshold: 30,
+    highThreshold: 120,
+    criticalThreshold: null,
+    escalateAfter: null,
+    resolveAfter: 1,
+  },
 ];
 
 const fmt = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -137,6 +150,22 @@ export function evaluate(rule: AlertRule, obs: Observation): Evaluation | null {
         message: breach
           ? `Negative Snowflake credits reported (${obs.creditsConsumed}); excluded from cost`
           : 'Reported credits are valid',
+      };
+    }
+    case 'telemetry_stale': {
+      if (obs.silentForMin === undefined || rule.warningThreshold === null) return null;
+      const minutes = Math.floor(obs.silentForMin);
+      const breach = obs.silentForMin > rule.warningThreshold;
+      const high = rule.highThreshold !== null && obs.silentForMin > rule.highThreshold;
+      return {
+        breach,
+        severity: high ? 'high' : 'warning',
+        value: minutes,
+        threshold: high ? rule.highThreshold : rule.warningThreshold,
+        unit: 'minutes',
+        message: breach
+          ? `No telemetry received for ${minutes} minute${minutes === 1 ? '' : 's'}`
+          : 'Telemetry is arriving again',
       };
     }
     default:

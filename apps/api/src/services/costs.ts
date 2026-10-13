@@ -7,6 +7,7 @@ import type {
 } from '@picc/contracts';
 import type { Principal } from '../auth/principal.js';
 import { badRequest } from '../http/errors.js';
+import type { WarehouseHandle } from '../warehouse/handle.js';
 import {
   type EfficiencyRow,
   type FactRow,
@@ -23,15 +24,27 @@ const ratio = (numerator: number, denominator: number): number | null =>
 /** Cost views. Every figure comes from the marts built by the SQL suite; this layer only
  *  filters to what the caller may see and reshapes for the API. */
 export class CostService {
-  private readonly efficiency = new Map<string, EfficiencyRow>();
-  private readonly names = new Map<string, string>();
-
   constructor(
-    private readonly snapshot: WarehouseSnapshot,
+    private readonly warehouse: WarehouseHandle,
     private readonly ownership: OwnershipService,
-  ) {
-    for (const row of snapshot.efficiency) this.efficiency.set(row.report_id, row);
-    for (const row of snapshot.dim) this.names.set(row.report_id, row.report_name);
+  ) {}
+
+  private get snapshot(): WarehouseSnapshot {
+    return this.warehouse.current;
+  }
+
+  private get efficiency(): Map<string, EfficiencyRow> {
+    return this.warehouse.derive(
+      'costs.efficiency',
+      (s) => new Map(s.efficiency.map((row) => [row.report_id, row])),
+    );
+  }
+
+  private get names(): Map<string, string> {
+    return this.warehouse.derive(
+      'costs.names',
+      (s) => new Map(s.dim.map((row) => [row.report_id, row.report_name])),
+    );
   }
 
   private visibleFacts(principal: Principal): FactRow[] {

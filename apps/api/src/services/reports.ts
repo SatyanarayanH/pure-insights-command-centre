@@ -11,6 +11,7 @@ import type { AlertService } from '../alerts/service.js';
 import { can, type Principal } from '../auth/principal.js';
 import { notFound } from '../http/errors.js';
 import type { ReportStateRepository } from '../opsdb/repositories.js';
+import type { WarehouseHandle } from '../warehouse/handle.js';
 import {
   type DimRow,
   type EfficiencyRow,
@@ -35,23 +36,41 @@ function quantile(values: number[], q: number): number | null {
 const sum = (values: (number | null)[]): number => values.reduce<number>((a, b) => a + (b ?? 0), 0);
 
 export class ReportService {
-  private readonly dim = new Map<string, DimRow>();
-  private readonly factsByReport = new Map<string, FactRow[]>();
-  private readonly efficiency = new Map<string, EfficiencyRow>();
-
   constructor(
-    private readonly snapshot: WarehouseSnapshot,
+    private readonly warehouse: WarehouseHandle,
     private readonly state: ReportStateRepository,
     private readonly ownership: OwnershipService,
     private readonly alerts: AlertService,
-  ) {
-    for (const row of snapshot.dim) this.dim.set(row.report_id, row);
-    for (const row of snapshot.efficiency) this.efficiency.set(row.report_id, row);
-    for (const fact of snapshot.facts) {
-      const list = this.factsByReport.get(fact.report_id) ?? [];
-      list.push(fact);
-      this.factsByReport.set(fact.report_id, list);
-    }
+  ) {}
+
+  private get snapshot(): WarehouseSnapshot {
+    return this.warehouse.current;
+  }
+
+  private get dim(): Map<string, DimRow> {
+    return this.warehouse.derive(
+      'reports.dim',
+      (s) => new Map(s.dim.map((row) => [row.report_id, row])),
+    );
+  }
+
+  private get efficiency(): Map<string, EfficiencyRow> {
+    return this.warehouse.derive(
+      'reports.efficiency',
+      (s) => new Map(s.efficiency.map((row) => [row.report_id, row])),
+    );
+  }
+
+  private get factsByReport(): Map<string, FactRow[]> {
+    return this.warehouse.derive('reports.facts', (s) => {
+      const byReport = new Map<string, FactRow[]>();
+      for (const fact of s.facts) {
+        const list = byReport.get(fact.report_id) ?? [];
+        list.push(fact);
+        byReport.set(fact.report_id, list);
+      }
+      return byReport;
+    });
   }
 
   reportName(reportId: string): string {

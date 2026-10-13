@@ -154,6 +154,6 @@ SELECT
     'credits as reported',
     f.snowflake_cost_loaded_usd,
     'Reported credits are negative. Cost imputed from execution time (Method C): '
-        || CAST(ROUND(f.credits_fully_loaded, 2) AS VARCHAR) || ' credits.'
+        || CAST(CAST(ROUND(f.credits_fully_loaded, 2) AS DECIMAL(18, 2)) AS VARCHAR) || ' credits.'
 FROM MART.FCT_REPORT_PERIOD f
 WHERE f.is_cost_quarantined;

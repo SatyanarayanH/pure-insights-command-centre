@@ -248,3 +248,44 @@ describe('machine identity (telemetry emitter)', () => {
     assert.equal((await request(ctx.app).get(`${API}/reports`).set('x-api-key', key)).status, 401);
   });
 });
+
+describe('serialising an event once per view class', () => {
+  it('gives every recipient in a class byte-identical events, and masks for the class that must not see', async () => {
+    const { ROLES } = await import('@picc/contracts');
+    const { userPrincipal, SERVICE_PRINCIPAL } = await import('../src/auth/principal.js');
+    const { renderEvent, viewClassOf } = await import('../src/services/presenters.js');
+    const principals = [
+      ...ROLES.flatMap((role) => [
+        userPrincipal({ id: `${role}-1`, email: `${role}.one@company.com`, name: 'One', role }),
+        userPrincipal({ id: `${role}-2`, email: `${role}.two@company.com`, name: 'Two', role }),
+      ]),
+      SERVICE_PRINCIPAL,
+    ];
+    // Real events, produced by the real pipeline: an alert with an owner and an acknowledger,
+    // and an ownership change. Between them they carry every email field an event can hold.
+    const reportId = ctx.container.ownership.reportsOwnedBy(OWNER)[0]!;
+    const orphan = (await ctx.get('/orphans', tokens.admin)).body.items[0].reportId as string;
+    await ctx.post('/admin/incidents', tokens.admin, { reportId, kind: 'refresh_failure' });
+    const alertId = (
+      await ctx.get(`/alerts?reportId=${reportId}&ruleId=refresh_failure`, tokens.admin)
+    ).body.items[0].id as string;
+    await ctx.post(`/alerts/${alertId}/ack`, tokens.admin, {});
+    await ctx.post(`/reports/${orphan}/owner`, tokens.admin, { ownerEmail: OWNER });
+    const records = ctx.container.bus.replayAfter(0).records;
+    assert.ok(records.some((r) => r.type === 'alert.updated'));
+    assert.ok(records.some((r) => r.type === 'report.owner_changed'));
+
+    for (const record of records) {
+      const byClass = new Map<string, string>();
+      for (const principal of principals) {
+        const text = JSON.stringify(renderEvent(record, principal));
+        const viewClass = viewClassOf(principal);
+        assert.equal(byClass.get(viewClass) ?? text, text, `${record.type} for ${principal.role}`);
+        byClass.set(viewClass, text);
+      }
+      // The class that may not read addresses never receives one.
+      const masked = byClass.get('masked')!;
+      assert.equal(/[a-z0-9_.]{2,}@company\.com/.test(masked), false, masked);
+    }
+  });
+});

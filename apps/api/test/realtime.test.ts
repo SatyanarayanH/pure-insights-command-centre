@@ -11,7 +11,7 @@ import {
 } from '@picc/contracts';
 import { WebSocket } from 'ws';
 import { EventBus } from '../src/realtime/bus.js';
-import { TicketStore } from '../src/realtime/tickets.js';
+import { MemoryTicketStore } from '../src/realtime/tickets.js';
 import { ADMIN, createTestContext, OWNER, type TestContext, VIEWER } from './helpers.js';
 
 let ctx: TestContext;
@@ -162,17 +162,17 @@ describe('event bus', () => {
 describe('tickets', () => {
   it('are single-use and expire after 30 seconds', async () => {
     let now = 0;
-    const store = new TicketStore(() => now);
+    const store = new MemoryTicketStore(() => now);
     const principal = ctx.container.personas.length
       ? (await import('../src/auth/principal.js')).SERVICE_PRINCIPAL
       : null;
-    const first = store.issue(principal!);
-    assert.ok(store.consume(first));
-    assert.equal(store.consume(first), null, 'second use fails');
-    const second = store.issue(principal!);
+    const first = await store.issue(principal!);
+    assert.ok(await store.consume(first));
+    assert.equal(await store.consume(first), null, 'second use fails');
+    const second = await store.issue(principal!);
     now = 30_001;
-    assert.equal(store.consume(second), null, 'expired');
-    assert.equal(store.consume('made-up'), null);
+    assert.equal(await store.consume(second), null, 'expired');
+    assert.equal(await store.consume('made-up'), null);
   });
 
   it('cannot be minted without a session', async () => {

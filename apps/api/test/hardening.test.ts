@@ -389,7 +389,7 @@ describe('restarts and upgrades of the operational database', () => {
 
     const upgraded = new OpsDb(file);
     try {
-      assert.equal(upgraded.schemaVersion, 2);
+      assert.equal(upgraded.schemaVersion, 3);
       const row = upgraded.get<{ flap_count: number; breach_streak: number; occurrences: number }>(
         "SELECT flap_count, breach_streak, occurrences FROM alerts WHERE id = 'old-1'",
       )!;
@@ -403,7 +403,7 @@ describe('restarts and upgrades of the operational database', () => {
     }
     // Opening it again is a no-op, not a second attempt to add the same columns.
     const reopened = new OpsDb(file);
-    assert.equal(reopened.schemaVersion, 2);
+    assert.equal(reopened.schemaVersion, 3);
     reopened.close();
   });
 });

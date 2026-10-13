@@ -1,7 +1,7 @@
 import type { OwnerAssignment } from '@picc/contracts';
 import type { Principal } from '../auth/principal.js';
 import type { OwnerAssignmentRepository } from '../opsdb/repositories.js';
-import type { DimRow } from '../warehouse/snapshot.js';
+import type { WarehouseHandle } from '../warehouse/handle.js';
 
 export interface EffectiveOwner {
   email: string | null;
@@ -16,19 +16,30 @@ export interface EffectiveOwner {
  * decided: REST handlers and the real-time gateway both ask `canSee`.
  */
 export class OwnershipService {
-  private readonly telemetryOwner = new Map<string, string | null>();
   private readonly assigned = new Map<string, OwnerAssignment>();
 
   constructor(
     private readonly assignments: OwnerAssignmentRepository,
-    dim: readonly DimRow[],
+    private readonly warehouse: WarehouseHandle,
   ) {
-    for (const report of dim) this.telemetryOwner.set(report.report_id, report.owner_email);
     for (const assignment of assignments.all()) this.assigned.set(assignment.reportId, assignment);
+  }
+
+  /** Owner per report as of the latest period in the warehouse. Follows a refresh. */
+  private get telemetryOwner(): Map<string, string | null> {
+    return this.warehouse.derive(
+      'ownership.telemetry',
+      (s) => new Map(s.dim.map((report) => [report.report_id, report.owner_email])),
+    );
   }
 
   exists(reportId: string): boolean {
     return this.telemetryOwner.has(reportId);
+  }
+
+  /** Every report in the catalogue. */
+  reportIds(): string[] {
+    return [...this.telemetryOwner.keys()];
   }
 
   ownerOf(reportId: string): EffectiveOwner {

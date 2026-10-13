@@ -239,7 +239,12 @@ export interface WarehouseSnapshot {
   reconciliation: ReconciliationRow[];
 }
 
-async function readSnapshot(
+/**
+ * Reads everything the application needs. Every query is ordered on a unique key: without
+ * that, two engines (or one engine on two days) may return the same rows in a different order,
+ * and "is the data the same?" stops being answerable by comparison.
+ */
+export async function readSnapshot(
   warehouse: Warehouse,
   meta: Pick<
     WarehouseSnapshot,
@@ -263,7 +268,7 @@ async function readSnapshot(
     methods: methods!,
     dim: await q<DimRow>('SELECT * FROM MART.DIM_REPORT ORDER BY report_id'),
     facts: await q<FactRow>('SELECT * FROM MART.FCT_REPORT_PERIOD ORDER BY report_id, period_seq'),
-    efficiency: await q<EfficiencyRow>('SELECT * FROM MART.REPORT_EFFICIENCY'),
+    efficiency: await q<EfficiencyRow>('SELECT * FROM MART.REPORT_EFFICIENCY ORDER BY report_id'),
     ownershipHistory: await q<OwnershipHistoryRow>(
       'SELECT report_id, period_seq, owner_email, change_type FROM MART.OWNERSHIP_HISTORY ORDER BY report_id, period_seq',
     ),
@@ -274,23 +279,26 @@ async function readSnapshot(
       SELECT attribution_class, tag_app, tag_report_id, SUM(query_rows) AS query_rows, SUM(credits) AS credits
       FROM MART.CREDITS_UNATTRIBUTED
       GROUP BY attribution_class, tag_app, tag_report_id
-      ORDER BY credits DESC`),
+      ORDER BY credits DESC, attribution_class, tag_app, tag_report_id`),
     correlations: await q(
-      'SELECT usage_measure, cost_measure, pearson_r, observations FROM MART.USAGE_COST_CORRELATION',
+      'SELECT usage_measure, cost_measure, pearson_r, observations FROM MART.USAGE_COST_CORRELATION ORDER BY usage_measure, cost_measure',
     ),
     orphanQueue: await q<OrphanQueueRow>('SELECT * FROM MART.ORPHAN_QUEUE ORDER BY priority_rank'),
     chargebackOwners: await q<ChargebackOwnerRow>(
-      'SELECT * FROM MART.CHARGEBACK_OWNER ORDER BY total_cost_usd DESC',
+      'SELECT * FROM MART.CHARGEBACK_OWNER ORDER BY total_cost_usd DESC, owner_key',
     ),
     chargebackLatest: await q(`
       SELECT owner_key, total_cost_usd
       FROM MART.CHARGEBACK_OWNER_PERIOD
-      WHERE period_seq = (SELECT MAX(period_seq) FROM MART.CHARGEBACK_OWNER_PERIOD)`),
+      WHERE period_seq = (SELECT MAX(period_seq) FROM MART.CHARGEBACK_OWNER_PERIOD)
+      ORDER BY owner_key`),
     anomalies: await q<AnomalyRow>(
-      'SELECT * FROM MART.COST_ANOMALIES ORDER BY est_monthly_impact_usd DESC',
+      'SELECT * FROM MART.COST_ANOMALIES ORDER BY est_monthly_impact_usd DESC, anomaly_type, report_id, period_seq',
     ),
     dqRules: await q<DqRuleRow>('SELECT * FROM DQ.RULE_SUMMARY ORDER BY rule_id'),
-    dqFindings: await q<DqFindingRow>('SELECT * FROM DQ.FINDINGS ORDER BY rule_id, row_seq'),
+    dqFindings: await q<DqFindingRow>(
+      'SELECT * FROM DQ.FINDINGS ORDER BY rule_id, row_seq, observed_value, detail',
+    ),
     quarantine: await q<QuarantineRow>('SELECT * FROM DQ.QUARANTINE ORDER BY row_seq'),
     reconciliation: await q<ReconciliationRow>('SELECT * FROM DQ.RECONCILIATION ORDER BY check_id'),
   };

@@ -7,10 +7,10 @@
  * Credentials come from the environment (or a .env file in the repository root, which is
  * git-ignored). Nothing is written to the repository except docs/evidence/snowflake-run.md.
  *
- * This file is also the reference implementation of the `Warehouse` interface for Snowflake:
- * the application talks to DuckDB through the same four methods.
+ * The connection is the application's own Snowflake adapter (apps/api/src/warehouse/snowflake.ts),
+ * the one it reads through when started with WAREHOUSE=snowflake.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   DEFAULT_GENERATED_DIR,
@@ -21,53 +21,13 @@ import {
 } from '../../apps/api/src/paths.js';
 import { ensureSimulation } from '../../apps/api/src/warehouse/build.js';
 import { DuckDbWarehouse } from '../../apps/api/src/warehouse/duckdb.js';
+import { connectSnowflake } from '../../apps/api/src/warehouse/snowflake.js';
 import { runSqlSuite, type SuiteResult } from '../../apps/api/src/warehouse/sql-runner.js';
-import { normaliseRow, type Row, type Warehouse } from '../../apps/api/src/warehouse/warehouse.js';
-
-interface SnowflakeConnection {
-  connect(callback: (error: Error | undefined) => void): void;
-  execute(options: {
-    sqlText: string;
-    binds?: unknown[];
-    complete: (error: Error | undefined, statement: unknown, rows: Row[] | undefined) => void;
-  }): void;
-  destroy(callback: (error: Error | undefined) => void): void;
-}
-
-class SnowflakeWarehouse implements Warehouse {
-  readonly dialect = 'snowflake' as const;
-
-  constructor(private readonly connection: SnowflakeConnection) {}
-
-  query<T extends Row = Row>(sql: string, params: readonly unknown[] = []): Promise<T[]> {
-    return new Promise((resolve, reject) => {
-      this.connection.execute({
-        sqlText: sql,
-        binds: [...params],
-        complete: (error, _statement, rows) =>
-          error ? reject(error) : resolve((rows ?? []).map(normaliseRow) as T[]),
-      });
-    });
-  }
-
-  async exec(sql: string): Promise<void> {
-    await this.query(sql);
-  }
-
-  close(): Promise<void> {
-    return new Promise((resolve) => this.connection.destroy(() => resolve()));
-  }
-}
+import type { Row } from '../../apps/api/src/warehouse/warehouse.js';
 
 function loadDotEnv(): void {
   const path = join(REPO_ROOT, '.env');
-  if (!existsSync(path)) return;
-  for (const line of readFileSync(path, 'utf8').split('\n')) {
-    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
-    if (match && !line.trim().startsWith('#') && process.env[match[1]!] === undefined) {
-      process.env[match[1]!] = match[2]!.replace(/^["']|["']$/g, '');
-    }
-  }
+  if (existsSync(path)) process.loadEnvFile(path);
 }
 
 function requireEnv(name: string): string {
@@ -81,38 +41,18 @@ function requireEnv(name: string): string {
   return value;
 }
 
-async function connect(): Promise<SnowflakeWarehouse> {
-  const { default: snowflake } = (await import('snowflake-sdk')) as unknown as {
-    default: {
-      createConnection(options: Record<string, unknown>): SnowflakeConnection;
-      configure(options: Record<string, unknown>): void;
-    };
-  };
-  snowflake.configure({ logLevel: 'ERROR' });
-
-  const auth: Record<string, unknown> = process.env.SNOWFLAKE_PRIVATE_KEY_PATH
-    ? {
-        authenticator: 'SNOWFLAKE_JWT',
-        privateKeyPath: process.env.SNOWFLAKE_PRIVATE_KEY_PATH,
-        privateKeyPass: process.env.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE,
-      }
-    : process.env.SNOWFLAKE_TOKEN
-      ? { authenticator: 'PROGRAMMATIC_ACCESS_TOKEN', token: process.env.SNOWFLAKE_TOKEN }
-      : { password: requireEnv('SNOWFLAKE_PASSWORD') };
-
-  const connection = snowflake.createConnection({
+const connect = () =>
+  connectSnowflake({
     account: requireEnv('SNOWFLAKE_ACCOUNT'),
     username: requireEnv('SNOWFLAKE_USER'),
-    ...auth,
+    password: process.env.SNOWFLAKE_PASSWORD,
+    token: process.env.SNOWFLAKE_TOKEN,
+    privateKeyPath: process.env.SNOWFLAKE_PRIVATE_KEY_PATH,
+    privateKeyPass: process.env.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE,
     warehouse: process.env.SNOWFLAKE_WAREHOUSE ?? 'COMPUTE_WH',
-    role: process.env.SNOWFLAKE_ROLE || undefined,
-    application: 'PureInsightsCommandCentre',
+    database,
+    role: process.env.SNOWFLAKE_ROLE,
   });
-  await new Promise<void>((resolve, reject) =>
-    connection.connect((error) => (error ? reject(error) : resolve())),
-  );
-  return new SnowflakeWarehouse(connection);
-}
 
 /** The queries whose results must match between engines, each ordered deterministically. */
 const COMPARISONS: { name: string; sql: string; key: string[] }[] = [
@@ -244,6 +184,13 @@ try {
     `Running the suite on Snowflake ${String(context.version)} (${String(context.region)}), database ${database}...`,
   );
   snowResult = await runSqlSuite(snow, { sqlDir: SQL_DIR, rawCsv, dataDir });
+  // Recorded for the application, which shows when the marts were built and how long it took.
+  await snow.exec(
+    'CREATE OR REPLACE TABLE CONFIG.BUILD (built_at TIMESTAMP_NTZ, suite_duration_ms INTEGER)',
+  );
+  await snow.query('INSERT INTO CONFIG.BUILD SELECT CURRENT_TIMESTAMP(), ?', [
+    snowResult.durationMs,
+  ]);
 
   for (const { name, sql, key } of COMPARISONS) {
     comparisons.push(compare(name, key, await duck.query(sql), await snow.query(sql)));

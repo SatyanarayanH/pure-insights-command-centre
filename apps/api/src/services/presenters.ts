@@ -50,11 +50,8 @@ export function presentCost(principal: Principal, fact: CostColumns): ReportCost
   };
 }
 
-export function presentAlert(
-  record: AlertRecord,
-  principal: Principal,
-  ctx: PresenterContext,
-): Alert {
+/** An alert in its API shape with nothing withheld. Never sent as is: see `redactAlert`. */
+export function presentAlertFull(record: AlertRecord, ctx: PresenterContext): Alert {
   const owner = ctx.ownership.ownerOf(record.reportId);
   return {
     id: record.id,
@@ -77,7 +74,7 @@ export function presentAlert(
     firstSeenAt: record.firstSeenAt,
     lastSeenAt: record.lastSeenAt,
     resolvedAt: record.resolvedAt,
-    acknowledgedBy: presentEmail(principal, record.acknowledgedBy),
+    acknowledgedBy: record.acknowledgedBy,
     acknowledgedAt: record.acknowledgedAt,
     ackNote: record.ackNote,
     // A snooze that has run out is no longer a snooze.
@@ -87,12 +84,29 @@ export function presentAlert(
         : null,
     routing: {
       kind: owner.email ? 'owner' : 'admins',
-      ownerEmail: presentEmail(principal, owner.email),
+      ownerEmail: owner.email,
       // An alert on a report nobody owns would otherwise notify nobody.
       escalated: owner.email === null,
     },
     source: record.source,
   };
+}
+
+/** Field-level security for an alert: the one place its email addresses are masked. */
+export function redactAlert(alert: Alert, principal: Principal): Alert {
+  return {
+    ...alert,
+    acknowledgedBy: presentEmail(principal, alert.acknowledgedBy),
+    routing: { ...alert.routing, ownerEmail: presentEmail(principal, alert.routing.ownerEmail) },
+  };
+}
+
+export function presentAlert(
+  record: AlertRecord,
+  principal: Principal,
+  ctx: PresenterContext,
+): Alert {
+  return redactAlert(presentAlertFull(record, ctx), principal);
 }
 
 export function latencySeverityOf(
@@ -105,8 +119,9 @@ export function latencySeverityOf(
   return loadTimeSec > rule.warningThreshold ? 'WARNING' : 'OK';
 }
 
+/** What an alert event carries on the bus: the unredacted API shape, fixed at publish time. */
 export interface AlertPayload {
-  alert: AlertRecord;
+  alert: Alert;
   change?: AlertChange;
 }
 
@@ -118,18 +133,31 @@ export interface OwnerChangedPayload {
 }
 
 /**
- * Renders a bus record for one recipient, or returns null if they must not receive it.
- * Checks, in order: topic subscription, row-level visibility, then field-level redaction.
+ * Whether a recipient may receive a bus record at all: topic subscription, then row-level
+ * visibility. Everything it needs is on the record and the principal. It consults no database,
+ * which is what allows a connection-only node fed from Redis to apply exactly the same rules.
  */
-export function renderForRecipient(
+export function canReceive(
   record: BusRecord,
   principal: Principal,
   topics: ReadonlySet<Topic>,
-  ctx: PresenterContext,
-): AnyServerEvent | null {
-  if (!topics.has(record.topic)) return null;
-  if (record.reportId && !ctx.ownership.canSee(principal, record.reportId)) return null;
+): boolean {
+  if (!topics.has(record.topic)) return false;
+  return !(record.reportId && principal.scope !== 'all' && record.ownerEmail !== principal.email);
+}
 
+/**
+ * Recipients in the same class receive byte-identical events, so the gateway serialises an
+ * event once per class rather than once per connection. The class is exactly the set of things
+ * `renderEvent` reads from the principal; if redaction ever depends on something new, it must
+ * be added here (a test compares the two for every role).
+ */
+export function viewClassOf(principal: Principal): string {
+  return can(principal, 'pii:read') ? 'unmasked' : 'masked';
+}
+
+/** The wire form of a bus record for a recipient who may receive it: field-level redaction. */
+export function renderEvent(record: BusRecord, principal: Principal): AnyServerEvent | null {
   const envelope = { v: PROTOCOL_VERSION, id: record.id, ts: record.ts } as const;
   switch (record.type) {
     case 'alert.fired':
@@ -138,7 +166,7 @@ export function renderForRecipient(
       return {
         ...envelope,
         type: record.type,
-        data: { alert: presentAlert(alert, principal, ctx) },
+        data: { alert: redactAlert(alert, principal) },
       };
     }
     case 'alert.updated': {
@@ -146,7 +174,7 @@ export function renderForRecipient(
       return {
         ...envelope,
         type: 'alert.updated',
-        data: { alert: presentAlert(alert, principal, ctx), change: change ?? 'occurrence' },
+        data: { alert: redactAlert(alert, principal), change: change ?? 'occurrence' },
       };
     }
     case 'report.owner_changed': {
@@ -168,4 +196,13 @@ export function renderForRecipient(
     default:
       return null;
   }
+}
+
+/** Renders a bus record for one recipient, or returns null if they must not receive it. */
+export function renderForRecipient(
+  record: BusRecord,
+  principal: Principal,
+  topics: ReadonlySet<Topic>,
+): AnyServerEvent | null {
+  return canReceive(record, principal, topics) ? renderEvent(record, principal) : null;
 }

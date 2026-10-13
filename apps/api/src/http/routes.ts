@@ -22,6 +22,8 @@ import {
   DqSummarySchema,
   InjectIncidentRequestSchema,
   LoginRequestSchema,
+  NotificationQuerySchema,
+  NotificationSchema,
   OkSchema,
   OrphanQueueSchema,
   OverviewSchema,
@@ -39,10 +41,13 @@ import {
   SystemStatusSchema,
   TelemetryIngestRequestSchema,
   TelemetryIngestResponseSchema,
+  TelemetrySeriesQuerySchema,
+  TelemetrySeriesSchema,
   UpdateAlertRuleRequestSchema,
   UpdateSimulatorRequestSchema,
   UserListSchema,
   UserSchema,
+  WarehouseRefreshResultSchema,
   WS_PATH,
 } from '@picc/contracts';
 import type { Request, Response } from 'express';
@@ -256,8 +261,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       auth: 'user',
       permission: 'alerts:read',
       response: RealtimeTicketSchema,
-      handler: ({ principal }) => ({
-        ticket: c.tickets.issue(principal),
+      handler: async ({ principal }) => ({
+        ticket: await c.tickets.issue(principal),
         expiresIn: TICKET_TTL_MS / 1000,
         wsPath: WS_PATH,
         ssePath: SSE_PATH,
@@ -453,13 +458,28 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       tag: 'Telemetry',
       summary: 'Push report observations',
       description:
-        'The integration point for the portal: one event per dashboard load or refresh. Authenticate with `X-API-Key` (service) or a bearer token holding `telemetry:ingest`. Each event is validated on its own; rejected events are listed in the response and the rest are processed.',
+        'The integration point for the portal: one event per dashboard load or refresh, up to 1,000 per request. Authenticate with `X-API-Key` (service) or a bearer token holding `telemetry:ingest`. Each event is validated on its own; rejected events are listed in the response and the rest are processed. Give each event an `eventId` and a request can be resent safely after a timeout: events already processed are counted in `duplicates` and not applied again.',
       auth: 'user-or-service',
       permission: 'telemetry:ingest',
       body: TelemetryIngestRequestSchema,
       response: TelemetryIngestResponseSchema,
       status: 202,
       handler: ({ body }) => c.telemetry.ingestRaw(body.events, { source: 'api' }),
+    }),
+    defineRoute({
+      method: 'get',
+      path: '/telemetry/series',
+      operationId: 'getTelemetrySeries',
+      tag: 'Telemetry',
+      summary: 'Live load time and refresh outcomes over the last hours',
+      description:
+        'Built from the stored readings, in fixed clock-aligned buckets: median, 95th percentile and maximum load time, plus breaches and refresh failures. A bucket with no readings is returned empty, so a gap in the feed is visible. With `reportId`, also returns the most recent individual readings.',
+      auth: 'user',
+      permission: 'reports:read',
+      rowScoped: true,
+      query: TelemetrySeriesQuerySchema,
+      response: TelemetrySeriesSchema,
+      handler: ({ principal, query }) => c.series.series(principal, query.window, query.reportId),
     }),
 
     // ---- Cost ------------------------------------------------------------------------------
@@ -629,6 +649,7 @@ export function buildRoutes(c: Container): RouteDefinition[] {
         );
         return {
           accepted: responses.reduce((a, r) => a + r.accepted, 0),
+          duplicates: 0,
           rejected: responses.flatMap((r) => r.rejected),
           alertsFired: responses.reduce((a, r) => a + r.alertsFired, 0),
           alertsResolved: responses.reduce((a, r) => a + r.alertsResolved, 0),
@@ -677,6 +698,49 @@ export function buildRoutes(c: Container): RouteDefinition[] {
     }),
     defineRoute({
       method: 'get',
+      path: '/notifications',
+      operationId: 'listNotifications',
+      tag: 'Admin',
+      summary: 'Alert notifications sent, pending, failed or only recorded',
+      description:
+        'Every notification is written here before delivery is attempted. `skipped` means no webhook is configured (NOTIFY_WEBHOOK_URL), so the notification was recorded and not sent.',
+      auth: 'user',
+      permission: 'notifications:read',
+      query: NotificationQuerySchema,
+      response: pageOf(NotificationSchema),
+      handler: ({ query }) => ({
+        ...c.notifications.list(query.page, query.pageSize, query.status),
+        page: query.page,
+        pageSize: query.pageSize,
+      }),
+    }),
+    defineRoute({
+      method: 'post',
+      path: '/admin/warehouse/refresh',
+      operationId: 'refreshWarehouse',
+      tag: 'Admin',
+      summary: 'Re-read the warehouse now, without a restart',
+      description:
+        'Audited. Fetches a fresh snapshot from the configured source and swaps it in if it is newer and passes every reconciliation check. On failure the previous data stays in service and the reason is returned. Also runs on a schedule when WAREHOUSE_REFRESH_MIN is set.',
+      auth: 'user',
+      permission: 'warehouse:refresh',
+      response: WarehouseRefreshResultSchema,
+      handler: async ({ principal, requestId }) => {
+        const result = await c.warehouse.refresh();
+        c.audit.record({
+          actor: principal.email,
+          actorRole: principal.role,
+          action: 'warehouse.refresh',
+          targetType: 'warehouse',
+          targetId: config.warehouse,
+          detail: { ...result },
+          requestId,
+        });
+        return result;
+      },
+    }),
+    defineRoute({
+      method: 'get',
       path: '/system/status',
       operationId: 'getSystemStatus',
       tag: 'System',
@@ -695,6 +759,8 @@ export function buildRoutes(c: Container): RouteDefinition[] {
           suiteDurationMs: c.snapshot.suiteDurationMs,
           reconciliationPassed: c.snapshot.reconciliation.filter((r) => r.status === 'PASS').length,
           reconciliationTotal: c.snapshot.reconciliation.length,
+          source: config.warehouse,
+          ...c.warehouse.state(),
         },
         realtime: {
           ...c.gateway.stats(),
@@ -702,6 +768,18 @@ export function buildRoutes(c: Container): RouteDefinition[] {
           bufferedEvents: c.bus.size,
         },
         simulator: c.simulator.state(),
+        telemetry: {
+          lastReceivedAt: c.telemetry.lastReceivedAt,
+          feedSilent: c.staleness.isFeedSilent,
+          feedSilentAfterSec: config.feedSilentAfterSec,
+          observationsStored: c.observations.count(),
+          retentionDays: config.telemetryRetentionDays,
+        },
+        notifications: {
+          channel: c.notifications.channel,
+          ...c.notifications.policy,
+          ...c.notifications.stats(),
+        },
       }),
     }),
   ];

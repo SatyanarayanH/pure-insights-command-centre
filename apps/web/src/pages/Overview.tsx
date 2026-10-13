@@ -4,6 +4,7 @@ import { Activity, Bell, CircleCheck, Coins, RefreshCw, Timer, UserX } from 'luc
 import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { BarsChart, SERIES_COLORS, TrendChart } from '../components/charts';
+import { LiveLatency } from '../components/LiveLatency';
 import { SeverityBadge } from '../components/status';
 import { Card, Empty, PageHeader, QueryBoundary, ScrollArea, Stat } from '../components/ui';
 import { api } from '../lib/api';
@@ -181,6 +182,8 @@ function OverviewBody({ data }: { data: Overview }) {
           }
         />
       </div>
+
+      <LiveLatency />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <Card

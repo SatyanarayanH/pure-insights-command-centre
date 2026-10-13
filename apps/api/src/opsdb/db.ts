@@ -133,6 +133,45 @@ const MIGRATIONS: readonly string[] = [
   `ALTER TABLE alerts ADD COLUMN breach_streak INTEGER NOT NULL DEFAULT 0;
    ALTER TABLE alerts ADD COLUMN flap_count INTEGER NOT NULL DEFAULT 0;
    UPDATE alerts SET flap_count = reopen_count;`,
+  // 3: every live reading is kept (trend charts, idempotent delivery by event id), and every
+  //    notification is written here before it is sent (an outbox: a crash between deciding to
+  //    notify and delivering cannot lose the notification).
+  `CREATE TABLE observations (
+     id                INTEGER PRIMARY KEY AUTOINCREMENT,
+     report_id         TEXT NOT NULL,
+     observed_at       TEXT NOT NULL,
+     received_at       TEXT NOT NULL,
+     load_time_sec     REAL,
+     refresh_status    TEXT,
+     credits_consumed  REAL,
+     source            TEXT NOT NULL,
+     event_id          TEXT UNIQUE
+   );
+   CREATE INDEX observations_observed ON observations(observed_at);
+   CREATE INDEX observations_report ON observations(report_id, observed_at);
+   CREATE INDEX observations_received ON observations(received_at);
+
+   CREATE TABLE notifications (
+     id               INTEGER PRIMARY KEY AUTOINCREMENT,
+     dedupe_key       TEXT NOT NULL UNIQUE,
+     kind             TEXT NOT NULL,
+     alert_id         TEXT,
+     episode          INTEGER NOT NULL DEFAULT 0,
+     report_id        TEXT,
+     severity         TEXT,
+     recipient        TEXT NOT NULL,
+     title            TEXT NOT NULL,
+     body             TEXT NOT NULL,
+     channel          TEXT NOT NULL,
+     status           TEXT NOT NULL,
+     attempts         INTEGER NOT NULL DEFAULT 0,
+     last_error       TEXT,
+     created_at       TEXT NOT NULL,
+     next_attempt_at  TEXT,
+     sent_at          TEXT
+   );
+   CREATE INDEX notifications_status ON notifications(status, next_attempt_at);
+   CREATE INDEX notifications_alert ON notifications(alert_id, episode);`,
 ];
 
 export type SqlValue = SQLInputValue;

@@ -16,8 +16,8 @@ export class LiveSimulator {
   private eventsEmitted = 0;
   private lastEventAt: string | null = null;
   private cursor = 0;
-  private readonly order: string[];
-  private readonly history = new Map<string, FactRow[]>();
+  private order: string[] = [];
+  private history = new Map<string, FactRow[]>();
   private readonly rng = createRng('live-simulator');
 
   constructor(
@@ -27,16 +27,24 @@ export class LiveSimulator {
     private readonly now: () => Date = () => new Date(),
     private readonly onError: (error: unknown) => void = () => undefined,
   ) {
+    this.load(facts);
+  }
+
+  /** Replaces the history the stream draws from. Called when the warehouse is refreshed. */
+  load(facts: readonly FactRow[]): void {
+    const history = new Map<string, FactRow[]>();
     for (const fact of facts) {
-      const list = this.history.get(fact.report_id) ?? [];
+      const list = history.get(fact.report_id) ?? [];
       list.push(fact);
-      this.history.set(fact.report_id, list);
+      history.set(fact.report_id, list);
     }
-    this.order = [...this.history.keys()];
-    for (let i = this.order.length - 1; i > 0; i--) {
+    const order = [...history.keys()];
+    for (let i = order.length - 1; i > 0; i--) {
       const j = this.rng.int(i + 1);
-      [this.order[i], this.order[j]] = [this.order[j]!, this.order[i]!];
+      [order[i], order[j]] = [order[j]!, order[i]!];
     }
+    this.history = history;
+    this.order = order;
   }
 
   start(): void {
@@ -72,6 +80,7 @@ export class LiveSimulator {
   }
 
   tick(): void {
+    if (this.order.length === 0) return;
     const reportId = this.order[this.cursor % this.order.length]!;
     this.cursor += 1;
     const samples = this.history.get(reportId)!;

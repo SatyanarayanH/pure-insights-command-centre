@@ -1,0 +1,78 @@
+# Scale-out demonstration: the same image in two roles, joined by Redis.
+#
+#   docker compose -f docker-compose.scale.yml up --build
+#   open http://localhost:4100
+#
+#   core   the whole application: REST API, alert engine, both stores. One instance.
+#   edge   holds WebSocket and SSE connections and nothing else. Two instances here;
+#          `--scale edge=N` for more.
+#   redis  the event stream and the stream tickets, shared by all of them.
+#   lb     sends /ws and /api/v1/stream to the edge tier, everything else to the core.
+#
+# The default `docker compose up` needs none of this and is unchanged.
+services:
+  redis:
+    image: redis:7-alpine
+    # Append-only file: the event stream survives a Redis restart too.
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+    volumes:
+      - scale-redis:/data
+
+  core:
+    build: .
+    image: pure-insights-command-centre:1.0.0
+    environment:
+      DEMO_MODE: "true"
+      REDIS_URL: redis://redis:6379
+      # Behind the load balancer: believe its X-Forwarded-For, once.
+      TRUST_PROXY: "1"
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-600}
+      SIMULATOR_ENABLED: ${SIMULATOR_ENABLED:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Stable sessions across a core restart (demo value; set your own outside a demo).
+      JWT_SECRET: ${JWT_SECRET:-scale-demo-signing-key-not-for-production-0001}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - scale-core-state:/app/data/runtime
+    restart: unless-stopped
+
+  edge:
+    image: pure-insights-command-centre:1.0.0
+    environment:
+      ROLE: edge
+      DEMO_MODE: "true"
+      REDIS_URL: redis://redis:6379
+      TRUST_PROXY: "1"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      redis:
+        condition: service_healthy
+      core:
+        condition: service_started
+    deploy:
+      replicas: 2
+    restart: unless-stopped
+
+  lb:
+    image: nginx:1.27-alpine
+    ports:
+      - "4100:80"
+    volumes:
+      - ./deploy/nginx.scale.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      core:
+        condition: service_healthy
+      edge:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  scale-redis:
+  scale-core-state:

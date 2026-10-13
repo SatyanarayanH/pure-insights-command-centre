@@ -4,13 +4,14 @@ import { can, type Principal } from '../auth/principal.js';
 import { badRequest, conflict, notFound } from '../http/errors.js';
 import type { AuditLog, ReportStateRepository, UserRepository } from '../opsdb/repositories.js';
 import type { EventBus } from '../realtime/bus.js';
+import type { WarehouseHandle } from '../warehouse/handle.js';
 import type { WarehouseSnapshot } from '../warehouse/snapshot.js';
 import type { OwnershipService } from './ownership.js';
 import { latencySeverityOf, type OwnerChangedPayload, presentEmail } from './presenters.js';
 
 export class OrphanService {
   constructor(
-    private readonly snapshot: WarehouseSnapshot,
+    private readonly warehouse: WarehouseHandle,
     private readonly ownership: OwnershipService,
     private readonly users: UserRepository,
     private readonly state: ReportStateRepository,
@@ -19,6 +20,10 @@ export class OrphanService {
     private readonly bus: EventBus,
     private readonly now: () => Date,
   ) {}
+
+  private get snapshot(): WarehouseSnapshot {
+    return this.warehouse.current;
+  }
 
   /** Reports with no owner right now, most expensive first. */
   queue(principal: Principal): OrphanQueue {

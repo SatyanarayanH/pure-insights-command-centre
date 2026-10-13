@@ -19,6 +19,7 @@ import { buildOpenApi } from './docs/openapi.js';
 import { HttpError } from './http/errors.js';
 import { mountRoutes, type RouteDefinition } from './http/registry.js';
 import { buildRoutes } from './http/routes.js';
+import { metricsHandler } from './metrics.js';
 
 export interface App {
   app: Express;
@@ -86,13 +87,35 @@ export function createApp(c: Container): App {
   app.use((req, res, next) => {
     const started = performance.now();
     res.on('finish', () => {
+      const durationMs = performance.now() - started;
+      // The route pattern, never the raw path: `/reports/:reportId` is one series, not one
+      // per report, and a scanner probing random URLs cannot inflate the label set.
+      const mounted = (req.route as { path?: unknown } | undefined)?.path;
+      const route =
+        typeof res.locals.routePattern === 'string'
+          ? `${API_PREFIX}${res.locals.routePattern}`
+          : typeof mounted === 'string'
+            ? mounted
+            : 'other';
+      c.metrics.inc('picc_http_requests_total', 'HTTP requests by route pattern and status.', {
+        method: req.method,
+        route,
+        status: res.statusCode,
+      });
+      c.metrics.observe(
+        'picc_http_request_duration_seconds',
+        'HTTP request duration by route pattern.',
+        { method: req.method, route },
+        durationMs / 1000,
+      );
+      if (req.path === '/metrics' || req.path === '/healthz') return;
       logger.info(
         {
           requestId: req.requestId,
           method: req.method,
           path: req.path,
           status: res.statusCode,
-          durationMs: Math.round(performance.now() - started),
+          durationMs: Math.round(durationMs),
           user: req.principal?.email,
         },
         'request',
@@ -117,6 +140,9 @@ export function createApp(c: Container): App {
     });
   });
 
+  registerGauges(c);
+  app.get('/metrics', metricsHandler(config, c.metrics));
+
   const limited = config.env !== 'test';
   const limiter = (limit: number) =>
     rateLimit({
@@ -137,7 +163,7 @@ export function createApp(c: Container): App {
         );
       },
     });
-  const apiLimiter = limiter(600);
+  const apiLimiter = limiter(config.rateLimitPerMin);
   // Credential endpoints get a far tighter budget than the rest of the API.
   const authLimiter = limiter(20);
 
@@ -178,9 +204,12 @@ export function createApp(c: Container): App {
   // The built web app, when present: one container serves both.
   if (existsSync(join(config.webDist, 'index.html'))) {
     app.use(express.static(config.webDist, { index: false, maxAge: '1h' }));
-    app.get(/^(?!\/(api|ws|docs|openapi\.json|asyncapi\.json|healthz|readyz)).*/, (_req, res) => {
-      res.sendFile(join(config.webDist, 'index.html'));
-    });
+    app.get(
+      /^(?!\/(api|ws|docs|openapi\.json|asyncapi\.json|healthz|readyz|metrics)).*/,
+      (_req, res) => {
+        res.sendFile(join(config.webDist, 'index.html'));
+      },
+    );
   }
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
@@ -207,4 +236,58 @@ export function createApp(c: Container): App {
   app.use(errorHandler);
 
   return { app, routes };
+}
+
+/** Values read from their owners at scrape time, so they are never stale. */
+function registerGauges(c: Container): void {
+  const m = c.metrics;
+  m.gauge('picc_alerts_open', 'Open alerts by severity.', () =>
+    Object.entries(c.alerts.openBySeverity()).map(([severity, value]) => ({
+      labels: { severity },
+      value,
+    })),
+  );
+  m.gauge('picc_telemetry_events', 'Telemetry events since start, by outcome.', () =>
+    Object.entries(c.telemetry.counts).map(([outcome, value]) => ({ labels: { outcome }, value })),
+  );
+  m.gauge('picc_telemetry_feed_silent', '1 when no telemetry is arriving from any report.', () =>
+    c.staleness.isFeedSilent ? 1 : 0,
+  );
+  m.gauge(
+    'picc_telemetry_last_received_timestamp_seconds',
+    'When the last telemetry event was received. 0 if none since the readings were last pruned.',
+    () => (c.telemetry.lastReceivedAt ? Date.parse(c.telemetry.lastReceivedAt) / 1000 : 0),
+  );
+  m.gauge('picc_realtime_connections', 'Open real-time connections by transport.', () => {
+    const { webSocketClients, sseClients } = c.gateway.stats();
+    return [
+      { labels: { transport: 'websocket' }, value: webSocketClients },
+      { labels: { transport: 'sse' }, value: sseClients },
+    ];
+  });
+  m.gauge(
+    'picc_realtime_latest_event_id',
+    'Id of the newest event on the bus.',
+    () => c.bus.latestId,
+  );
+  m.gauge('picc_notifications', 'Notifications by delivery status.', () =>
+    Object.entries(c.notifications.stats()).map(([status, value]) => ({
+      labels: { status },
+      value,
+    })),
+  );
+  m.gauge('picc_warehouse_reconciliation_checks', 'Reconciliation checks by result.', () => {
+    const counts: Record<string, number> = { PASS: 0, WARN: 0, FAIL: 0 };
+    for (const check of c.snapshot.reconciliation)
+      counts[check.status] = (counts[check.status] ?? 0) + 1;
+    return Object.entries(counts).map(([status, value]) => ({ labels: { status }, value }));
+  });
+  m.gauge(
+    'picc_warehouse_built_timestamp_seconds',
+    'When the warehouse snapshot in service was built.',
+    () => Date.parse(c.snapshot.builtAt) / 1000 || 0,
+  );
+  m.gauge('picc_warehouse_refreshes', 'Warehouse refreshes since start, by outcome.', () =>
+    Object.entries(c.warehouse.counts).map(([outcome, value]) => ({ labels: { outcome }, value })),
+  );
 }

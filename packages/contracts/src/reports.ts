@@ -288,3 +288,51 @@ export const OverviewSchema = z
   })
   .meta({ id: 'Overview' });
 export type Overview = z.infer<typeof OverviewSchema>;
+
+export const TELEMETRY_WINDOWS = ['1h', '6h', '24h'] as const;
+export const TelemetryWindowSchema = z.enum(TELEMETRY_WINDOWS);
+export type TelemetryWindow = z.infer<typeof TelemetryWindowSchema>;
+
+export const TelemetrySeriesQuerySchema = z.object({
+  window: TelemetryWindowSchema.default('1h'),
+  reportId: ReportIdSchema.optional(),
+});
+
+export const TelemetrySeriesSchema = z
+  .object({
+    window: TelemetryWindowSchema,
+    bucketMinutes: z.number().int(),
+    thresholdSec: z.number(),
+    reportId: ReportIdSchema.nullable(),
+    totals: z.object({
+      observations: z.number().int(),
+      latencyBreaches: z.number().int(),
+      refreshFailures: z.number().int(),
+      reports: z.number().int(),
+    }),
+    buckets: z.array(
+      z.object({
+        start: IsoDateTimeSchema,
+        observations: z.number().int(),
+        p50LoadSec: z.number().nullable(),
+        p95LoadSec: z.number().nullable(),
+        maxLoadSec: z.number().nullable(),
+        latencyBreaches: z.number().int(),
+        refreshFailures: z.number().int(),
+      }),
+    ),
+    points: z
+      .array(
+        z.object({
+          observedAt: IsoDateTimeSchema,
+          loadTimeSec: z.number().nullable(),
+          refreshStatus: RefreshStatusSchema.nullable(),
+          source: z.string(),
+        }),
+      )
+      .meta({
+        description: 'The most recent individual readings. Only returned for a single report.',
+      }),
+  })
+  .meta({ id: 'TelemetrySeries' });
+export type TelemetrySeries = z.infer<typeof TelemetrySeriesSchema>;

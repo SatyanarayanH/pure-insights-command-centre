@@ -6,6 +6,7 @@ import { Link, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { AlertActions, AssignOwnerDialog, IncidentButtons } from '../components/actions';
 import { BarsChart, TrendChart } from '../components/charts';
+import { LiveLatency } from '../components/LiveLatency';
 import { AlertStatusBadge, OwnerCell, QuadrantBadge, SeverityBadge } from '../components/status';
 import {
   Badge,
@@ -245,6 +246,8 @@ function Detail({ report }: { report: ReportDetail }) {
           />
         )}
       </div>
+
+      <LiveLatency reportId={report.reportId} />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <Card

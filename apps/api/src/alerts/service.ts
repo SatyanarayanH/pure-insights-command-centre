@@ -18,6 +18,7 @@ import {
   type AlertPayload,
   type PresenterContext,
   presentAlert,
+  presentAlertFull,
   presentEmail,
 } from '../services/presenters.js';
 import { FLAPPING_REOPEN_COUNT } from './engine.js';
@@ -43,7 +44,7 @@ export class AlertService {
   publish(events: readonly EngineEvent[]): void {
     for (const event of events) {
       const payload: AlertPayload = {
-        alert: { ...event.alert },
+        alert: presentAlertFull(event.alert, this.ctx),
         ...(event.type === 'updated' ? { change: event.change } : {}),
       };
       this.bus.publish(`alert.${event.type}`, 'alerts', payload, event.alert.reportId);
@@ -232,6 +233,19 @@ export class AlertService {
 
   listRules(): AlertRule[] {
     return this.rules.list();
+  }
+
+  /** The alert currently open for one rule on one report, if any. */
+  openAlert(ruleId: AlertRuleId, reportId: string): AlertRecord | undefined {
+    const latest = this.alerts.latestForFingerprint(`${ruleId}:${reportId}`);
+    return latest && latest.status !== 'resolved' ? latest : undefined;
+  }
+
+  /** Open alerts by severity, for the metrics endpoint. */
+  openBySeverity(): Record<Severity, number> {
+    const counts: Record<Severity, number> = { info: 0, warning: 0, high: 0, critical: 0 };
+    for (const alert of this.alerts.active()) counts[alert.severity] += 1;
+    return counts;
   }
 
   updateRule(

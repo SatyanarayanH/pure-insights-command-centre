@@ -229,7 +229,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           setTelemetry((list) => [{ id: event.id, ...event.data }, ...list].slice(0, 40));
           break;
         case 'system.notice':
-          invalidate('alert-rules', 'simulator', 'overview');
+          // New warehouse data changes every figure on every page.
+          if (event.data.code === 'warehouse.refreshed') void queryClient.invalidateQueries();
+          else invalidate('alert-rules', 'simulator', 'overview', 'system-status');
           log({
             kind: 'notice',
             title: 'System notice',
@@ -237,7 +239,11 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
             reportId: null,
             severity: null,
           });
-          pushToast({ tone: 'info', title: 'System notice', body: event.data.message });
+          pushToast({
+            tone: event.data.level === 'warning' ? 'warning' : 'info',
+            title: 'System notice',
+            body: event.data.message,
+          });
           break;
         case 'replay.gap':
           // Too much was missed to replay: every cached list is suspect.

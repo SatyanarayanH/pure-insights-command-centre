@@ -1,8 +1,13 @@
 import type { DqFinding, DqSummary, QuarantineRow } from '@picc/contracts';
+import type { WarehouseHandle } from '../warehouse/handle.js';
 import type { WarehouseSnapshot } from '../warehouse/snapshot.js';
 
 export class DqService {
-  constructor(private readonly snapshot: WarehouseSnapshot) {}
+  constructor(private readonly warehouse: WarehouseHandle) {}
+
+  private get snapshot(): WarehouseSnapshot {
+    return this.warehouse.current;
+  }
 
   summary(): DqSummary {
     const s = this.snapshot;

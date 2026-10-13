@@ -17,7 +17,12 @@ import type { Request, Response } from 'express';
 import { type WebSocket, WebSocketServer } from 'ws';
 import type { Principal } from '../auth/principal.js';
 import type { Logger } from '../logger.js';
-import { type PresenterContext, renderForRecipient } from '../services/presenters.js';
+import {
+  canReceive,
+  renderEvent,
+  renderForRecipient,
+  viewClassOf,
+} from '../services/presenters.js';
 import type { BusRecord, EventBus } from './bus.js';
 import type { TicketStore } from './tickets.js';
 
@@ -97,7 +102,6 @@ export class RealtimeGateway {
   constructor(
     private readonly bus: EventBus,
     private readonly tickets: TicketStore,
-    private readonly ctx: PresenterContext,
     private readonly logger: Logger,
     private readonly options: GatewayOptions = DEFAULT_GATEWAY_OPTIONS,
   ) {
@@ -139,15 +143,26 @@ export class RealtimeGateway {
     this.wss.handleUpgrade(req, socket, head, (ws) => {
       // The upgrade is accepted before the ticket is checked on purpose: a browser cannot read
       // the status of a refused upgrade, but it can read a close code.
-      const principal = this.tickets.consume(url.searchParams.get('ticket'));
-      if (!principal) {
-        ws.close(WS_CLOSE_CODES.UNAUTHORIZED.code, WS_CLOSE_CODES.UNAUTHORIZED.reason);
-        return;
-      }
-      this.onConnection(ws, principal, parseTopics(url.searchParams.get('topics')), {
-        lastEventId: parseEventId(url.searchParams.get('lastEventId')),
-        streamId: url.searchParams.get('streamId'),
-      });
+      // Redeeming may be a round trip to Redis. Nothing the client sends is read until the
+      // connection has its handlers, so no early message is lost.
+      ws.pause();
+      this.tickets
+        .consume(url.searchParams.get('ticket'))
+        .then((principal) => {
+          if (!principal) {
+            ws.close(WS_CLOSE_CODES.UNAUTHORIZED.code, WS_CLOSE_CODES.UNAUTHORIZED.reason);
+            return;
+          }
+          this.onConnection(ws, principal, parseTopics(url.searchParams.get('topics')), {
+            lastEventId: parseEventId(url.searchParams.get('lastEventId')),
+            streamId: url.searchParams.get('streamId'),
+          });
+        })
+        .catch((error: unknown) => {
+          this.logger.error({ err: error }, 'ticket store unavailable');
+          ws.close(1011, 'Ticket could not be checked');
+        })
+        .finally(() => ws.resume());
     });
   }
 
@@ -246,13 +261,17 @@ export class RealtimeGateway {
   }
 
   private sendWs(connection: WsConnection, event: AnyServerEvent): void {
+    this.sendWsText(connection, JSON.stringify(event));
+  }
+
+  private sendWsText(connection: WsConnection, text: string): void {
     const { socket } = connection;
     if (socket.readyState !== socket.OPEN) return;
     if (socket.bufferedAmount > this.options.maxBufferedBytes) {
       socket.close(WS_CLOSE_CODES.SLOW_CONSUMER.code, WS_CLOSE_CODES.SLOW_CONSUMER.reason);
       return;
     }
-    socket.send(JSON.stringify(event));
+    socket.send(text);
   }
 
   private checkConnections(): void {
@@ -282,10 +301,13 @@ export class RealtimeGateway {
 
   // ---- Server-Sent Events -----------------------------------------------------------------
 
-  handleSse = (req: Request, res: Response): void => {
-    const principal = this.tickets.consume(
-      typeof req.query.ticket === 'string' ? req.query.ticket : null,
-    );
+  handleSse = async (req: Request, res: Response): Promise<void> => {
+    const principal = await this.tickets
+      .consume(typeof req.query.ticket === 'string' ? req.query.ticket : null)
+      .catch((error: unknown) => {
+        this.logger.error({ err: error }, 'ticket store unavailable');
+        return null;
+      });
     if (!principal) {
       res.status(401).type('application/problem+json').json({
         type: 'https://pure-insights.example/problems/unauthorized',
@@ -359,7 +381,7 @@ export class RealtimeGateway {
     const replay = resumable ? this.bus.replayAfter(lastEventId) : null;
     const gap = lastEventId !== null && (!resumable || replay?.gap === true);
     const missed = (replay?.records ?? [])
-      .map((record) => renderForRecipient(record, principal, topics, this.ctx))
+      .map((record) => renderForRecipient(record, principal, topics))
       .filter((event): event is AnyServerEvent => event !== null);
 
     send(
@@ -389,14 +411,36 @@ export class RealtimeGateway {
     for (const event of missed) send(event);
   }
 
+  /**
+   * Fans one event out to every connection that may receive it.
+   *
+   * What a recipient is sent depends on who they are only through their view class (see
+   * `viewClassOf`), so the event is rendered and serialised once per class and the same text is
+   * written to every connection in it. With several hundred connections this is the difference
+   * between one JSON.stringify per event and one per event per connection.
+   */
   private deliver(record: BusRecord): void {
+    const serialised = new Map<string, string | null>();
+    const textFor = (principal: Principal, topics: ReadonlySet<Topic>): string | null => {
+      if (!canReceive(record, principal, topics)) return null;
+      const viewClass = viewClassOf(principal);
+      let text = serialised.get(viewClass);
+      if (text === undefined) {
+        const event = renderEvent(record, principal);
+        text = event ? JSON.stringify(event) : null;
+        serialised.set(viewClass, text);
+      }
+      return text;
+    };
     for (const connection of this.ws.values()) {
-      const event = renderForRecipient(record, connection.principal, connection.topics, this.ctx);
-      if (event) this.sendWs(connection, event);
+      const text = textFor(connection.principal, connection.topics);
+      if (text !== null) this.sendWsText(connection, text);
     }
     for (const connection of this.sse.values()) {
-      const event = renderForRecipient(record, connection.principal, connection.topics, this.ctx);
-      if (event) this.sendSse(connection, event);
+      const text = textFor(connection.principal, connection.topics);
+      if (text !== null) {
+        connection.res.write(`id: ${record.id}\nevent: ${record.type}\ndata: ${text}\n\n`);
+      }
     }
   }
 

@@ -115,6 +115,9 @@ function parse<T>(schema: z.ZodType<T> | undefined, value: unknown, where: strin
 
 export function toHandler(route: RouteDefinition, deps: RouteDeps): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
+    // For metrics: the pattern, set here because Express forgets where a request was mounted
+    // by the time an error has travelled out to the error handler.
+    res.locals.routePattern = route.path;
     try {
       const principal = await authenticate(req, route.auth, deps);
       req.principal = principal;

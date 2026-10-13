@@ -144,6 +144,8 @@ The suite stays inside the subset both engines execute. Where they differ, the S
 | A calendar table (`RAW.PERIOD_CALENDAR`) | Date arithmetic in queries | Portable, and makes the period assumption explicit and replaceable. |
 | `GET_PATH(TRY_PARSE_JSON(tag), 'report_id')` | `tag:report_id::string` | Two macros in `loaders/duckdb_load.sql` cover it. |
 | `DOUBLE`, `INTEGER`, `VARCHAR`, `TIMESTAMP` | `NUMBER(p,s)`, `TIMESTAMP_NTZ` | DuckDB does not know the names. |
+| `CAST(CAST(x AS DECIMAL(18, 2)) AS VARCHAR)`, or the text from the source file | `CAST(a_double AS VARCHAR)` | The engines print a whole-number double differently (`40.0` and `40`). Found by comparing everything the application reads, value by value. |
+| `ORDER BY` on a unique key in every query the application reads | Relying on the order rows come back in | The engines, and one engine on two days, may differ. |
 
 One performance note is in `03_attribution_time_weighted.sql`: "which metered hours does this query overlap" is a range join, and with two warehouses the equality on `warehouse_id` barely narrows it. Expanding each query to the calendar days it touches first turns the expensive part into an equi-join. On DuckDB that took the script from 13.5 seconds to under one.
 
@@ -159,5 +161,16 @@ npm run sql:snowflake
 ```
 
 This installs the Snowflake driver into `tools/snowflake/` (kept out of the main install), creates the database `PURE_INSIGHTS_SIM`, uploads the files to an internal stage, runs the same eight scripts, and then compares every mart row by row with the DuckDB run. The result is written to `docs/evidence/snowflake-run.md`.
+
+### Running the application on it
+
+Once the marts exist in Snowflake, the application can read them directly instead of building its own copy:
+
+```bash
+WAREHOUSE=snowflake npm run dev
+npm run snowflake:live-read      # proves it: compares all it reads with DuckDB, then runs the app on it
+```
+
+In this mode the application does not run the suite; it reads what the last run produced, and picks up a newer run on its next refresh (`WAREHOUSE_REFRESH_MIN`, or the Refresh button in Admin). `live-read` compares 17 result sets, about 128,000 values, between the two engines; the result is in `docs/evidence/snowflake-live-read.md`.
 
 To run against production data instead of the simulation, replace the `ACCOUNT_USAGE` schema references with `SNOWFLAKE.ACCOUNT_USAGE` and drop the loader; the column names are the real ones. Two things to know about the real views: they lag by up to a few hours, and `QUERY_ATTRIBUTION_HISTORY` omits very short queries, which Method B's overhead factor absorbs.

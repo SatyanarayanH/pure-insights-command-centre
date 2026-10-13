@@ -12,6 +12,7 @@ export const ALERT_RULE_IDS = [
   'refresh_failure',
   'refresh_unknown',
   'invalid_telemetry',
+  'telemetry_stale',
 ] as const;
 export const AlertRuleIdSchema = z.enum(ALERT_RULE_IDS).meta({ id: 'AlertRuleId' });
 export type AlertRuleId = z.infer<typeof AlertRuleIdSchema>;
@@ -24,7 +25,7 @@ export const AlertStatusSchema = z.enum(['firing', 'acknowledged', 'resolved']).
 export type AlertStatus = z.infer<typeof AlertStatusSchema>;
 
 export const AlertSourceSchema = z
-  .enum(['backfill', 'live', 'injected', 'api'])
+  .enum(['backfill', 'live', 'injected', 'api', 'monitor'])
   .meta({ id: 'AlertSource' });
 export type AlertSource = z.infer<typeof AlertSourceSchema>;
 
@@ -52,7 +53,8 @@ export const AlertSchema = z
     status: AlertStatusSchema,
     message: z.string(),
     value: z.number().nullable().meta({
-      description: 'Latest observed value (seconds for latency, streak length for refresh).',
+      description:
+        'Latest observed value (seconds for latency, streak length for refresh, minutes of silence for stale telemetry).',
     }),
     threshold: z.number().nullable(),
     unit: z.string().nullable(),
@@ -162,10 +164,10 @@ export const AlertRuleSchema = z
     inBrief: z
       .boolean()
       .meta({ description: 'True for the two conditions the case-study brief mandates.' }),
-    warningThreshold: z
-      .number()
-      .nullable()
-      .meta({ description: 'Latency: seconds above which a warning fires.' }),
+    warningThreshold: z.number().nullable().meta({
+      description:
+        'Latency: seconds above which a warning fires. Stale telemetry: minutes without a reading before the alert fires.',
+    }),
     highThreshold: z.number().nullable(),
     criticalThreshold: z.number().nullable(),
     escalateAfter: z.number().int().nullable().meta({
@@ -209,6 +211,16 @@ export type UpdateAlertRuleRequest = z.infer<typeof UpdateAlertRuleRequestSchema
 export const TelemetryEventSchema = z
   .object({
     reportId: ReportIdSchema,
+    eventId: z
+      .string()
+      .min(8)
+      .max(100)
+      .regex(/^[\w.:-]+$/)
+      .optional()
+      .meta({
+        description:
+          'Emitter-assigned unique id for this observation. Makes delivery idempotent: an event whose id has already been processed is acknowledged and not applied again.',
+      }),
     observedAt: z.iso.datetime({ offset: true }).optional().meta({
       description:
         'ISO-8601 with a time zone. Defaults to the time of receipt. Rejected if more than five minutes in the future, or older than the newest observation already held for the report.',
@@ -247,6 +259,10 @@ export const TelemetryIngestRequestSchema = z.object({
 export const TelemetryIngestResponseSchema = z
   .object({
     accepted: z.number().int(),
+    duplicates: z.number().int().meta({
+      description:
+        'Events whose `eventId` had already been processed. They are acknowledged and ignored, so an emitter can safely resend a batch after a timeout.',
+    }),
     rejected: z.array(z.object({ index: z.number().int(), reason: z.string() })),
     alertsFired: z.number().int(),
     alertsResolved: z.number().int(),

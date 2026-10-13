@@ -95,7 +95,7 @@ try {
     '06_cost_anomalies.sql',
     '07_reconciliation_tests.sql',
   ];
-  const escape = (text) =>
+  const escapeHtml = (text) =>
     text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   const sqlIntro = read('sql', 'README.md')
     .replace(
@@ -108,7 +108,7 @@ try {
   const sqlListing = sqlFiles
     .map(
       (file) =>
-        `<h3 class="sqlfile">sql/${file}</h3><pre class="sql"><code>${escape(read('sql', file).trimEnd())}</code></pre>`,
+        `<h3 class="sqlfile">sql/${file}</h3><pre class="sql"><code>${escapeHtml(read('sql', file).trimEnd())}</code></pre>`,
     )
     .join('\n');
 

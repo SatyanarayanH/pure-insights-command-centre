@@ -266,7 +266,8 @@ export function PageHeader({
         <h1 className="text-[22px] leading-7 font-semibold tracking-tight text-ink">{title}</h1>
         {description && <p className="mt-1 max-w-3xl text-[14px] text-ink-2">{description}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {/* max-w-full: a wide control (a long tab bar) scrolls inside itself, not the page. */}
+      {actions && <div className="flex max-w-full min-w-0 items-center gap-2">{actions}</div>}
     </div>
   );
 }

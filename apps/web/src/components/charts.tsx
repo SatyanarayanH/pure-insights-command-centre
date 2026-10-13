@@ -105,6 +105,7 @@ export function ChartCard({
   table,
   children,
   className,
+  controls,
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -113,6 +114,8 @@ export function ChartCard({
   table?: { columns: string[]; rows: (string | number)[][] };
   children: ReactNode;
   className?: string;
+  /** Extra header controls, such as a time-range switch, shown beside the table toggle. */
+  controls?: ReactNode;
 }) {
   const [asTable, setAsTable] = useState(false);
   return (
@@ -121,19 +124,24 @@ export function ChartCard({
       subtitle={subtitle}
       className={className}
       actions={
-        table && (
-          <button
-            type="button"
-            onClick={() => setAsTable((v) => !v)}
-            aria-pressed={asTable}
-            title={asTable ? 'Show chart' : 'Show as table'}
-            className={cx(
-              'rounded-md p-1.5 hover:bg-surface-2',
-              asTable ? 'bg-surface-2 text-ink' : 'text-ink-3',
+        (table || controls) && (
+          <span className="inline-flex items-center gap-2">
+            {controls}
+            {table && (
+              <button
+                type="button"
+                onClick={() => setAsTable((v) => !v)}
+                aria-pressed={asTable}
+                title={asTable ? 'Show chart' : 'Show as table'}
+                className={cx(
+                  'rounded-md p-1.5 hover:bg-surface-2',
+                  asTable ? 'bg-surface-2 text-ink' : 'text-ink-3',
+                )}
+              >
+                <Table2 size={15} />
+              </button>
             )}
-          >
-            <Table2 size={15} />
-          </button>
+          </span>
         )
       }
     >
@@ -216,6 +224,8 @@ export function TrendChart({
   threshold,
   yDomain,
   className,
+  controls,
+  showGaps = false,
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -228,8 +238,14 @@ export function TrendChart({
   threshold?: { value: number; label: string };
   yDomain?: [number, number | 'auto'];
   className?: string;
+  controls?: ReactNode;
+  /** Break the line where a value is missing. For live data, where a gap is information. */
+  showGaps?: boolean;
 }) {
   const labelWidth = Math.max(...series.map((s) => s.label.length)) * 6.2 + 12;
+  // Live series often finish close together, where end labels would collide; the legend
+  // identifies them instead.
+  const endLabels = series.length > 1 && !showGaps;
   return (
     <ChartCard
       title={title}
@@ -237,11 +253,12 @@ export function TrendChart({
       series={series}
       table={tableOf(data, xKey, xLabel, series, format)}
       className={className}
+      controls={controls}
     >
       <ResponsiveContainer width="100%" height={height}>
         <LineChart
           data={data}
-          margin={{ top: 8, right: series.length > 1 ? labelWidth : 16, left: 0, bottom: 0 }}
+          margin={{ top: 8, right: endLabels ? labelWidth : 16, left: 0, bottom: 0 }}
         >
           <CartesianGrid stroke="var(--line)" vertical={false} />
           <XAxis
@@ -286,11 +303,12 @@ export function TrendChart({
               name={s.label}
               stroke={s.color}
               strokeWidth={2}
-              dot={false}
+              // With gaps shown, a reading with no neighbour would otherwise draw nothing.
+              dot={showGaps ? { r: 2.5, fill: s.color, strokeWidth: 0 } : false}
               activeDot={{ r: 4, stroke: 'var(--surface)', strokeWidth: 2 }}
               isAnimationActive={false}
-              connectNulls
-              label={series.length > 1 ? endLabel(s, data.length - 1) : undefined}
+              connectNulls={!showGaps}
+              label={endLabels ? endLabel(s, data.length - 1) : undefined}
             />
           ))}
         </LineChart>

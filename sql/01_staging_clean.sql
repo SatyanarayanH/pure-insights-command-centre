@@ -225,22 +225,27 @@ WHERE s.is_orphaned
 
 UNION ALL
 SELECT 'DQ-02', s.row_seq, s.report_id, s.period_seq,
-       CAST(s.credits_raw AS VARCHAR),
+       -- The value exactly as it appears in the file. Casting the number back to text would
+       -- print 40.0 on one engine and 40 on another.
+       TRIM(r.snowflake_credits_consumed),
        'negative credits excluded from attribution'
 FROM STG.REPORT_TELEMETRY s
+JOIN RAW.REPORT_TELEMETRY r ON r.row_seq = s.row_seq
 WHERE s.credits_raw < 0
 
 UNION ALL
 SELECT 'DQ-03', s.row_seq, s.report_id, s.period_seq,
-       CAST(s.avg_load_time_sec AS VARCHAR),
+       TRIM(r.avg_load_time_sec),
        'latency severity ' || s.latency_severity
 FROM STG.REPORT_TELEMETRY s
+JOIN RAW.REPORT_TELEMETRY r ON r.row_seq = s.row_seq
 WHERE s.is_latency_breach
 
 UNION ALL
 SELECT 'DQ-04', s.row_seq, s.report_id, s.period_seq,
-       CAST(ROUND(s.aws_hosting_cost_usd / s.monthly_active_views, 2) AS VARCHAR),
-       'USD per view, robust z = ' || CAST(ROUND(z.robust_z, 2) AS VARCHAR)
+       -- Through a fixed-scale decimal, so both engines print the same two places.
+       CAST(CAST(ROUND(s.aws_hosting_cost_usd / s.monthly_active_views, 2) AS DECIMAL(18, 2)) AS VARCHAR),
+       'USD per view, robust z = ' || CAST(CAST(ROUND(z.robust_z, 2) AS DECIMAL(18, 2)) AS VARCHAR)
 FROM STG.REPORT_TELEMETRY s
 JOIN cpv_scored z ON z.row_seq = s.row_seq
 CROSS JOIN CONFIG.COST_PARAMS p
@@ -273,8 +278,9 @@ WHERE o.owner_email IS NOT NULL
 UNION ALL
 SELECT 'DQ-08', s.row_seq, s.report_id, s.period_seq,
        CAST(s.monthly_active_views AS VARCHAR),
-       'USD ' || CAST(s.aws_hosting_cost_usd AS VARCHAR) || ' hosting cost with no views'
+       'USD ' || TRIM(r.aws_hosting_cost_usd) || ' hosting cost with no views'
 FROM STG.REPORT_TELEMETRY s
+JOIN RAW.REPORT_TELEMETRY r ON r.row_seq = s.row_seq
 WHERE s.is_zero_views
 
 UNION ALL
