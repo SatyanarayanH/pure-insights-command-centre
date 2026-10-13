@@ -2,7 +2,7 @@
 
 Deliverable 3 of Case Study 3. Eight scripts that take report telemetry and Snowflake `ACCOUNT_USAGE` logs and produce: credits attributed to each report, unit cost per active view, chargeback by owner, a list of cost anomalies, and a set of checks that prove the numbers add up.
 
-The scripts are written in Snowflake SQL. They run unchanged on DuckDB, which is how they are tested on every build and how the application loads its data.
+The scripts are written in Snowflake SQL. They have been run on a real Snowflake account, where all 16 reconciliation checks pass and every result table matches the DuckDB run row for row ([evidence](../docs/evidence/snowflake-run.md)). They also run unchanged on DuckDB, which is how they are tested on every build and how the application loads its data.
 
 ## Run it
 

@@ -10,7 +10,7 @@ The contracts package, the route registry, the alert engine, the telemetry pipel
 
 | Area | Now | Production | Size of change |
 | --- | --- | --- | --- |
-| Warehouse | DuckDB over simulated `ACCOUNT_USAGE` | Snowflake over `SNOWFLAKE.ACCOUNT_USAGE` | Point the schema references at the real views and drop the loader. The `Warehouse` interface has four methods; `tools/snowflake/run.ts` implements it for the Snowflake driver. |
+| Warehouse | DuckDB over simulated `ACCOUNT_USAGE` | Snowflake over `SNOWFLAKE.ACCOUNT_USAGE` | Point the schema references at the real views and drop the loader. The `Warehouse` interface has four methods; `tools/snowflake/run.ts` implements it for the Snowflake driver and has run the full suite on a live account. |
 | Suite scheduling | Runs at application start | A Snowflake task or dbt job, hourly; the app reads the marts | The app's snapshot loader becomes a query on a schedule. |
 | Report catalogue | The CSV | The portal's own metadata table | One loader. |
 | Operational store | SQLite file | Postgres on RDS | The repositories in `opsdb/` are the only SQL that changes. |

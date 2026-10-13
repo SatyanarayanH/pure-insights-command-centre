@@ -82,7 +82,7 @@ The full list, with row counts and source line numbers, is generated from the pi
 
 - Eight scripts in Snowflake SQL: [`sql/`](sql/). Three attribution methods compared side by side, unit cost per active view, chargeback, anomalies.
 - **Sixteen reconciliation checks** that fail the build: every billed credit lands in exactly one line.
-- Runs unchanged on DuckDB, where it is tested on every build. `npm run sql:snowflake` executes the same files on a Snowflake account and compares every mart with the DuckDB result; see [`docs/evidence/`](docs/evidence/) for the outcome of that run.
+- **Verified on real Snowflake.** The same eight files ran unchanged on a Snowflake account (version 10.37, AWS): all 16 reconciliation checks pass there, and every result table (2,000 fact rows included) is identical to the DuckDB run. Evidence: [`docs/evidence/snowflake-run.md`](docs/evidence/snowflake-run.md). DuckDB runs the suite on every build.
 
 ### Code quality and system docs
 
@@ -134,7 +134,7 @@ Configuration is by environment variable; every one has a default. See [`.env.ex
 
 ## Scope and limits
 
-- **`ACCOUNT_USAGE` is simulated**, because the dataset contains none. The simulator's assumptions are listed in [`docs/assumptions.md`](docs/assumptions.md); the one that matters most is how much the queries behind a negative credit figure really cost.
+- **`ACCOUNT_USAGE` is simulated**, because the dataset contains none. The SQL ran on real Snowflake, but against the simulated tables, not against `SNOWFLAKE.ACCOUNT_USAGE`. The simulator's assumptions are listed in [`docs/assumptions.md`](docs/assumptions.md); the one that matters most is how much the queries behind a negative credit figure really cost.
 - **Demo mode is on by default**: seeded accounts, one-click sign-in, incident injection. Set `DEMO_MODE=false` and `JWT_SECRET` for anything else.
 - **Single process.** The event bus and ticket store are in memory. The path to several nodes is in [`docs/production-path.md`](docs/production-path.md).
 - **The dataset is the catalogue.** Reports are the 100 in the file; there is no create or delete.
