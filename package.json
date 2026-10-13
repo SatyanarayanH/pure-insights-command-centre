@@ -17,7 +17,7 @@
     "start": "npm run start -w @picc/api",
     "test": "node --import tsx --test --test-reporter=spec \"apps/api/test/**/*.test.ts\" \"packages/contracts/test/**/*.test.ts\"",
     "test:e2e": "playwright test",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -p packages/contracts && tsc -p apps/api && tsc -p apps/web",
     "lint": "biome check .",
     "format": "biome check --write .",
     "simulate": "npm run simulate -w @picc/api",

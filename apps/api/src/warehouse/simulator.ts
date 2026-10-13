@@ -115,9 +115,24 @@ export function sha256(text: string): string {
   return createHash('sha256').update(text).digest('hex');
 }
 
-/** 'YYYY-MM-DD HH:MM:SS.mmm' in UTC: parses identically in DuckDB and Snowflake. */
+const datePrefixByDay = new Map<number, string>();
+const pad2 = (n: number): string => (n < 10 ? `0${n}` : String(n));
+const pad3 = (n: number): string => (n < 10 ? `00${n}` : n < 100 ? `0${n}` : String(n));
+
+/** 'YYYY-MM-DD HH:MM:SS.mmm' in UTC: parses identically in DuckDB and Snowflake.
+ *  Called twice per simulated query, so the date part is cached per day. */
 export function formatTimestamp(ms: number): string {
-  return new Date(ms).toISOString().replace('T', ' ').replace('Z', '');
+  const day = Math.floor(ms / 86_400_000);
+  let prefix = datePrefixByDay.get(day);
+  if (prefix === undefined) {
+    prefix = new Date(day * 86_400_000).toISOString().slice(0, 10);
+    datePrefixByDay.set(day, prefix);
+  }
+  const inDay = ms - day * 86_400_000;
+  const hours = Math.floor(inDay / 3_600_000);
+  const minutes = Math.floor((inDay % 3_600_000) / 60_000);
+  const seconds = Math.floor((inDay % 60_000) / 1000);
+  return `${prefix} ${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}.${pad3(inDay % 1000)}`;
 }
 
 function round(value: number, places: number): number {
