@@ -112,6 +112,13 @@ try {
     )
     .join('\n');
 
+  // A relative link works in the repository but not in a PDF, where it would resolve to a path
+  // on the machine that built it. Point each one at the same file on GitHub instead.
+  const absoluteLinks = (html) =>
+    html.replace(/<a href="(?!https?:|mailto:|#)([^"]+)">([\s\S]*?)<\/a>/g, (_all, href, text) =>
+      isDraft ? text : `<a href="${repoUrl}/blob/main/docs/${href}">${text}</a>`,
+    );
+
   const body = [
     isDraft
       ? '<div class="draft">DRAFT: the repository link is not set. Rebuild with REPO_URL before uploading.</div>'
@@ -124,7 +131,9 @@ try {
     marked.parse(sqlIntro, { gfm: true }),
     '<h2>The scripts</h2>',
     sqlListing,
-  ].join('\n');
+  ]
+    .map(absoluteLinks)
+    .join('\n');
 
   // Core PDF fonts keep the file small: nothing has to be embedded in bulk.
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Pure Insights Command Centre: Case Study 3 submission</title>
