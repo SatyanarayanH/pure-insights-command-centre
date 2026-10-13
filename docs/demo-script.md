@@ -47,4 +47,4 @@ Open **Cost**.
 
 - `http://localhost:4000/docs`: the API explorer, generated from the code.
 - **Admin → Access**: the permission matrix, read from the same table the server enforces.
-- `npm test`: 115 tests in about 15 seconds, including every route against every role.
+- `npm test`: 118 tests in about 15 seconds, including every route against every role.

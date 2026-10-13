@@ -85,9 +85,9 @@ Negative credit figures are withheld from attribution and kept. Their cost is es
 | --- | --- | --- |
 | SQL suite | 16 reconciliation checks, plus defect counts | The cost model adds up; every defect is counted. |
 | Simulator | Determinism, exact disaggregation | Simulated logs sum back to the dataset for all 2,000 report-periods. |
-| Alert engine | 22 lifecycle cases | Dedup, tiers, hysteresis, reopen, flapping, the three boundary decisions. |
+| Alert engine | 22 lifecycle cases | Dedup, tiers, hysteresis and the recovering state, reopen, flapping, the three boundary decisions. |
 | Access | Every route × every role, plus anonymous | 401, 403 or allowed, exactly as the role table says. |
 | API | Auth, errors, reports, orphans, telemetry, cost, data quality | Behaviour, and that responses match their schemas. |
-| Real-time | Bus, tickets, WebSocket, SSE | Delivery, row and field security on the stream, resume, heartbeats. |
+| Real-time | Bus, tickets, WebSocket, SSE | Delivery, row and field security on the stream, resume, heartbeats, the production origin check. |
 | Documentation | Drift checks | Committed OpenAPI, AsyncAPI and reports equal what the code generates. |
 | Browser | 8 Playwright scenarios | Per-role experience; a live alert crossing two sessions; orphan remediation. |

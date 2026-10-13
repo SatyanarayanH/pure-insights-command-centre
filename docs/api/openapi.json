@@ -3170,6 +3170,14 @@
           "isFlapping": {
             "type": "boolean"
           },
+          "healthyStreak": {
+            "type": "integer",
+            "description": "Consecutive healthy observations since the last breach. Above 0 on an open alert means it is recovering: the latest reading was fine but the alert has not cleared yet."
+          },
+          "resolveAfter": {
+            "type": "integer",
+            "description": "Healthy observations in a row needed before this alert resolves."
+          },
           "firstSeenAt": {
             "type": "string",
             "description": "ISO-8601 timestamp (UTC)",
@@ -3251,6 +3259,8 @@
           "occurrences",
           "reopenCount",
           "isFlapping",
+          "healthyStreak",
+          "resolveAfter",
           "firstSeenAt",
           "lastSeenAt",
           "resolvedAt",
@@ -3325,6 +3335,14 @@
           },
           "isFlapping": {
             "type": "boolean"
+          },
+          "healthyStreak": {
+            "type": "integer",
+            "description": "Consecutive healthy observations since the last breach. Above 0 on an open alert means it is recovering: the latest reading was fine but the alert has not cleared yet."
+          },
+          "resolveAfter": {
+            "type": "integer",
+            "description": "Healthy observations in a row needed before this alert resolves."
           },
           "firstSeenAt": {
             "type": "string",
@@ -3413,6 +3431,8 @@
           "occurrences",
           "reopenCount",
           "isFlapping",
+          "healthyStreak",
+          "resolveAfter",
           "firstSeenAt",
           "lastSeenAt",
           "resolvedAt",

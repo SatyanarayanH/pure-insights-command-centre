@@ -88,6 +88,8 @@ Design decisions that matter:
 - **State-changing requests authenticate with the bearer header, not the cookie.** The cookie is only ever sent to the auth path, so cross-site request forgery has nothing to ride on.
 - **Passwords** are hashed with scrypt (N=16384, r=8, p=1) and a per-user salt.
 
+The WebSocket endpoint additionally checks the `Origin` header in production: the page the API serves is same-origin and always accepted; any other origin must be on the `CORS_ORIGIN` allow-list.
+
 A second identity exists for machines: the portal's telemetry emitter authenticates to `POST /api/v1/telemetry` with an `X-API-Key` header. That key grants `telemetry:ingest` and nothing else, and is not honoured on any other route.
 
 **Demo mode.** With `DEMO_MODE=true` the server seeds one account per persona and enables `POST /api/v1/auth/demo-login` (one-click sign-in) and the incident injector. Both return 403 when demo mode is off. In production, sign-in would be delegated to the corporate identity provider over OIDC; the `Principal` the rest of the system consumes would be built from the ID token's claims instead of a local user row.
@@ -212,7 +214,7 @@ So the engine adds a lifecycle on top of the literal rule:
 | --- | --- |
 | Fingerprint | One open alert per rule per report (`latency:RPT_203`). A repeat breach increments `occurrences` and sends `alert.updated`, not a second `alert.fired`. |
 | Severity tiers | Latency: warning above 15 s, high above 30 s, critical above 45 s. Refresh: high, then critical from the third consecutive failure. |
-| Hysteresis | An alert resolves only after `resolveAfter` consecutive healthy observations (2 for latency, 1 for refresh), so one good reading between bad ones does not clear it. |
+| Hysteresis | An alert resolves only after `resolveAfter` consecutive healthy observations (2 for latency, 1 for refresh), so one good reading between bad ones does not clear it. While it waits, the alert carries `healthyStreak` and the interface labels it "Recovering 1/2". This is why a report's current reading can be healthy while its alert is still open: the report row shows the latest observation, the alert shows the incident. |
 | Reopen | A breach within 3 healthy observations of a resolve reopens the same alert and increments `reopenCount`. |
 | Flap detection | `reopenCount` of 2 or more sets `isFlapping`. Clients stop notifying for it. |
 | Routing | To the report's owner. If the report has no owner, to administrators with `escalated: true`: an alert on an orphaned report would otherwise notify nobody. |
@@ -336,6 +338,8 @@ The complete catalogue with schemas is in Appendix A and `asyncapi.json`. An ale
       "occurrences": 1,
       "reopenCount": 0,
       "isFlapping": false,
+      "healthyStreak": 0,
+      "resolveAfter": 2,
       "firstSeenAt": "2026-10-13T09:00:00.000Z",
       "lastSeenAt": "2026-10-13T09:00:00.000Z",
       "resolvedAt": null,
@@ -353,6 +357,7 @@ The complete catalogue with schemas is in Appendix A and `asyncapi.json`. An ale
 | `change` | Cause | Suggested client behaviour |
 | --- | --- | --- |
 | `occurrence` | Another breaching observation, same severity | Update the row quietly. |
+| `recovering` | A healthy observation arrived, but fewer than `resolveAfter` in a row | Show progress (`healthyStreak` of `resolveAfter`); do not notify. |
 | `escalated` / `deescalated` | Severity moved | Notify on escalation to critical. |
 | `acknowledged` / `snoozed` | A person acted | Update the row; show who. |
 | `reopened` | Breach returned soon after resolving | Notify unless `isFlapping`. |

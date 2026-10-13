@@ -106,7 +106,12 @@ export class TelemetryService {
         };
         const produced = this.engine.process(observation);
         engineEvents.push(...produced);
-        observed.push({ observation, breach: produced.some((e) => e.type !== 'resolved') });
+        observed.push({
+          observation,
+          breach: produced.some(
+            (e) => e.type === 'fired' || (e.type === 'updated' && e.change !== 'recovering'),
+          ),
+        });
       }
     });
 

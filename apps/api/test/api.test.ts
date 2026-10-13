@@ -328,6 +328,25 @@ describe('telemetry and alerting through the API', () => {
     assert.equal(alert.source, 'api');
   });
 
+  it('keeps a latency alert open, marked as recovering, after a single healthy reading', async () => {
+    await ctx.post('/telemetry', admin, { events: [{ reportId: REPORT, loadTimeSec: 3.5 }] });
+    // The report row shows the latest reading; the alert shows the incident and its progress.
+    const report = (await ctx.get(`/reports/${REPORT}`, admin)).body;
+    assert.equal(report.loadTimeSec, 3.5);
+    assert.equal(report.latencySeverity, 'OK');
+    const [alert] = await alertsFor('latency');
+    assert.equal(alert.status, 'firing');
+    assert.equal(alert.healthyStreak, 1);
+    assert.equal(alert.resolveAfter, 2);
+
+    await ctx.post('/telemetry', admin, { events: [{ reportId: REPORT, loadTimeSec: 3.5 }] });
+    assert.equal(
+      (await alertsFor('latency')).length,
+      0,
+      'the second healthy reading in a row clears it',
+    );
+  });
+
   it('opens a refresh alert on failure and escalates it on the third in a row', async () => {
     await ctx.post('/telemetry', admin, {
       events: [{ reportId: REPORT, refreshStatus: 'SUCCESS' }],

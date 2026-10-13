@@ -1,6 +1,6 @@
 # Test run
 
-`npm test` on v23.11.0, 2026-10-13T06:02Z.
+`npm test` on v23.11.0, 2026-10-13T16:01Z.
 
 ```
 
@@ -59,6 +59,7 @@
 ▶ telemetry and alerting through the API
   ✔ accepts a batch, processes the valid events and reports the rejected ones
   ✔ opens a latency alert above 15 s, not at exactly 15 s
+  ✔ keeps a latency alert open, marked as recovering, after a single healthy reading
   ✔ opens a refresh alert on failure and escalates it on the third in a row
   ✔ injects incidents through the same pipeline and recovers from them
   ✔ lets an admin change a threshold, audits it, and rejects inconsistent tiers
@@ -141,6 +142,10 @@
   ✔ resumes from Last-Event-ID
   ✔ refuses a missing or reused ticket with 401 problem details
 ✔ Server-Sent Events stream
+▶ WebSocket origin check (production)
+  ✔ accepts the page the API itself serves (same origin), which is how the Docker image runs
+  ✔ accepts an allow-listed origin and refuses any other
+✔ WebSocket origin check (production)
 ▶ csv
   ✔ reads quoted fields, escaped quotes and embedded commas
   ✔ reads the dataset as 2,000 rows with the ten documented columns
@@ -175,12 +180,12 @@
   ✔ rejects alert thresholds that do not increase
   ✔ only admits known WebSocket client messages
 ✔ request schemas
-ℹ tests 115
-ℹ suites 27
-ℹ pass 115
+ℹ tests 118
+ℹ suites 28
+ℹ pass 118
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 14017.504375
+ℹ duration_ms 9795.1895
 ```

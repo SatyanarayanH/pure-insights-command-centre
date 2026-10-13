@@ -160,7 +160,13 @@ describe('alert lifecycle', () => {
   it('resolves only after resolveAfter consecutive healthy observations', () => {
     const id = only(latency(22)).alert.id;
     assert.equal(rule('latency').resolveAfter, 2);
-    assert.deepEqual(latency(5), [], 'one healthy observation is not enough');
+    const recovering = only(latency(5));
+    assert.equal(
+      recovering.type === 'updated' && recovering.change,
+      'recovering',
+      'one healthy observation is not enough',
+    );
+    assert.equal(recovering.alert.okStreak, 1);
     assert.equal(alerts.get(id)!.status, 'firing');
     const resolved = only(latency(5));
     assert.equal(resolved.type, 'resolved');
@@ -171,8 +177,9 @@ describe('alert lifecycle', () => {
   it('resets the healthy streak when a breach interrupts it', () => {
     const id = only(latency(22)).alert.id;
     latency(5);
-    latency(25);
-    assert.deepEqual(latency(5), []);
+    assert.equal(only(latency(25)).alert.okStreak, 0, 'a breach wipes out recovery progress');
+    const again = only(latency(5));
+    assert.equal(again.type === 'updated' && again.change, 'recovering');
     assert.equal(alerts.get(id)!.status, 'firing');
   });
 

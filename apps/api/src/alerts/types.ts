@@ -63,7 +63,8 @@ export type AlertChange =
   | 'acknowledged'
   | 'snoozed'
   | 'rerouted'
-  | 'reopened';
+  | 'reopened'
+  | 'recovering';
 
 export type EngineEvent =
   | { type: 'fired'; alert: AlertRecord }

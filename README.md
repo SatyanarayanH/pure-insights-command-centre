@@ -86,7 +86,7 @@ The full list, with row counts and source line numbers, is generated from the pi
 
 ### Code quality and system docs
 
-- **115 tests** (`npm test`) and **8 browser scenarios** (`npm run test:e2e`). The access matrix is tested for every route against every role, derived from the route registry.
+- **118 tests** (`npm test`) and **8 browser scenarios** (`npm run test:e2e`). The access matrix is tested for every route against every role, derived from the route registry.
 - **The specification cannot drift**: OpenAPI, AsyncAPI, the API reference and the data-quality report are generated from the code, and a test fails if the committed copies are stale.
 - TypeScript strict mode end to end, one lint and format tool, CI workflow in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 - [Architecture and decisions](docs/architecture.md) · [Assumptions](docs/assumptions.md) · [Path to production](docs/production-path.md)

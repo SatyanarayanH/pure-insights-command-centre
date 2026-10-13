@@ -61,6 +61,11 @@ function AlertDrawer({ alertId, onClose }: { alertId: string; onClose: () => voi
                   status={alert.status}
                   flapping={alert.isFlapping}
                   snoozed={Boolean(alert.snoozedUntil)}
+                  recovering={
+                    alert.healthyStreak > 0
+                      ? { healthy: alert.healthyStreak, needed: alert.resolveAfter }
+                      : null
+                  }
                 />
                 <Link
                   to={`/reports/${alert.reportId}`}
@@ -222,20 +227,20 @@ export function AlertsPage() {
       <div className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat
-            label="Firing"
-            value={fmtNum(s?.firing)}
-            tone={s && s.firing > 0 ? 'critical' : 'good'}
+            label="Open alerts"
+            value={fmtNum(s ? s.firing + s.acknowledged : undefined)}
+            tone={s && s.bySeverity.critical > 0 ? 'critical' : 'neutral'}
             hint={
               s
-                ? `${s.bySeverity.critical} critical · ${s.bySeverity.high} high · ${s.bySeverity.warning} warning`
+                ? `${s.bySeverity.critical} critical · ${s.bySeverity.high} high · ${s.bySeverity.warning} warning · ${s.bySeverity.info} info`
                 : undefined
             }
           />
           <Stat
-            label="Acknowledged"
-            value={fmtNum(s?.acknowledged)}
-            tone="accent"
-            hint="someone has taken it; clears on its own"
+            label="Not yet acknowledged"
+            value={fmtNum(s?.firing)}
+            tone={s && s.firing > 0 ? 'serious' : 'good'}
+            hint={s ? `firing · ${s.acknowledged} more acknowledged by someone` : undefined}
           />
           <Stat
             label="Escalated to admins"
@@ -365,6 +370,11 @@ export function AlertsPage() {
                           status={alert.status}
                           flapping={alert.isFlapping}
                           snoozed={Boolean(alert.snoozedUntil)}
+                          recovering={
+                            alert.healthyStreak > 0
+                              ? { healthy: alert.healthyStreak, needed: alert.resolveAfter }
+                              : null
+                          }
                         />
                       </td>
                       {/* biome-ignore lint/a11y/useKeyWithClickEvents: only stops the row click; the buttons inside are keyboard-operable */}
@@ -389,10 +399,13 @@ export function AlertsPage() {
         </Card>
 
         <Note>
-          In this dataset 82% of observations break at least one rule. Alerting on each one, as a
-          literal reading of the brief suggests, would be noise. Every breach still produces an
-          event on the stream; the engine groups them, tiers severity at 15, 30 and 45 seconds,
-          waits for consecutive healthy readings before clearing, and mutes alerts that flap.
+          An alert describes an incident, not the latest reading. A latency alert stays open until
+          two healthy readings arrive in a row, so a report can show a good load time on the Reports
+          page while its alert here is marked Recovering 1/2. In this dataset 82% of observations
+          break at least one rule. Alerting on each one, as a literal reading of the brief suggests,
+          would be noise. Every breach still produces an event on the stream; the engine groups
+          them, tiers severity at 15, 30 and 45 seconds, waits for consecutive healthy readings
+          before clearing, and mutes alerts that flap.
         </Note>
         <Rules />
       </div>

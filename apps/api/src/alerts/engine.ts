@@ -61,8 +61,10 @@ export class AlertEngine {
     if (open) {
       open.okStreak += 1;
       if (open.okStreak >= rule.resolveAfter) return this.resolve(open, obs, ev);
+      // Healthy, but not for long enough to clear. The alert stays open and says so, which is
+      // why a report can show a good current reading next to an open alert.
       this.alerts.update(open);
-      return null;
+      return { type: 'updated', change: 'recovering', alert: open };
     }
     if (latest) {
       latest.obsSinceResolved += 1;

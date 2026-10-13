@@ -17,6 +17,7 @@ import {
   Info,
   Repeat,
   Timer,
+  TrendingUp,
   TriangleAlert,
   UserX,
 } from 'lucide-react';
@@ -97,10 +98,13 @@ export function AlertStatusBadge({
   status,
   flapping,
   snoozed,
+  recovering,
 }: {
   status: AlertStatus;
   flapping?: boolean;
   snoozed?: boolean;
+  /** Set when the latest reading was healthy but the alert has not cleared yet. */
+  recovering?: { healthy: number; needed: number } | null;
 }) {
   return (
     <span className="inline-flex items-center gap-1">
@@ -120,6 +124,15 @@ export function AlertStatusBadge({
       {status === 'resolved' && (
         <Badge tone="good" icon={<CircleCheck size={12} />}>
           Resolved
+        </Badge>
+      )}
+      {recovering && status !== 'resolved' && (
+        <Badge
+          tone="good"
+          icon={<TrendingUp size={12} />}
+          title={`The latest reading was healthy. The alert clears after ${recovering.needed} healthy readings in a row, so one good reading between bad ones does not close it.`}
+        >
+          Recovering {recovering.healthy}/{recovering.needed}
         </Badge>
       )}
       {flapping && (

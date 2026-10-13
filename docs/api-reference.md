@@ -165,7 +165,7 @@ Envelope: `{ "v": 1, "id": <integer>, "type": "<event type>", "ts": "<ISO-8601>"
 | --- | --- | --- |
 | `connection.ready` | — | First message on every connection. States who the server thinks you are and how many missed events follow. |
 | `alert.fired` | `alerts` | A report crossed an alert rule and no alert was open for that rule and report. Sent once per incident, not once per breaching observation. |
-| `alert.updated` | `alerts` | Another breaching observation was folded in (`occurrence`), severity moved, or a person acknowledged or snoozed it. |
+| `alert.updated` | `alerts` | Another breaching observation was folded in (`occurrence`), severity moved, a healthy observation arrived but not yet enough to clear it (`recovering`), or a person acknowledged or snoozed it. |
 | `alert.resolved` | `alerts` | The condition stayed healthy for the rule's `resolveAfter` consecutive observations. |
 | `telemetry.observed` | `telemetry` | Raw feed for live tickers. High volume; clients must opt in to the `telemetry` topic. |
 | `report.owner_changed` | `reports` | Clients should refetch report lists and the orphan queue. |

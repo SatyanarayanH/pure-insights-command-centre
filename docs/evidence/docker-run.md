@@ -10,6 +10,6 @@
 | `GET /readyz` | `{"status":"ready","warehouse":{"dialect":"duckdb","builtAt":"2026-10-13T14:56:58.794Z","reports":100}}` |
 | Web app served at `/` | 200 text/html; charset=utf-8 |
 | Sign-in and `GET /api/v1/overview` | 200 |
-| WebSocket `/ws` | connected with a ticket; an injected latency spike arrived as an alert event on the stream |
+| WebSocket `/ws` | connected with a ticket and a browser-style `Origin` header; an injected latency spike arrived as an alert event on the stream |
 
 The image builds the warehouse at build time, so the container is ready about a second after it starts. The build fails if any reconciliation check fails.

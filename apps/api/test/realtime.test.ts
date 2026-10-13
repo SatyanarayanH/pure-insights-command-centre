@@ -551,3 +551,52 @@ describe('Server-Sent Events stream', () => {
     assert.match(none.contentType!, /application\/problem\+json/);
   });
 });
+
+describe('WebSocket origin check (production)', () => {
+  let strict: TestContext;
+  let strictServer: Server;
+  let strictPort: number;
+  let token: string;
+
+  before(async () => {
+    strict = await createTestContext(
+      {},
+      { gateway: { enforceOrigin: true, allowedOrigins: ['https://portal.example.com'] } },
+    );
+    strictServer = createServer(strict.app);
+    strict.container.gateway.attach(strictServer);
+    await new Promise<void>((resolve) => strictServer.listen(0, '127.0.0.1', resolve));
+    strictPort = (strictServer.address() as AddressInfo).port;
+    token = await strict.login(ADMIN);
+  });
+  after(async () => {
+    strict.close();
+    strictServer.closeAllConnections();
+    await new Promise((resolve) => strictServer.close(resolve));
+  });
+
+  /** Resolves with 'open' once the handshake message arrives, or with the refusal. */
+  const attempt = async (origin: string): Promise<string> => {
+    const ticket = (await strict.post('/realtime/ticket', token)).body.ticket as string;
+    const socket = new WebSocket(`ws://127.0.0.1:${strictPort}${WS_PATH}?ticket=${ticket}`, {
+      origin,
+    });
+    return new Promise((resolve) => {
+      socket.on('message', () => {
+        resolve('open');
+        socket.close();
+      });
+      socket.on('unexpected-response', (_req, res) => resolve(`refused ${res.statusCode}`));
+      socket.on('error', () => resolve('refused'));
+    });
+  };
+
+  it('accepts the page the API itself serves (same origin), which is how the Docker image runs', async () => {
+    assert.equal(await attempt(`http://127.0.0.1:${strictPort}`), 'open');
+  });
+
+  it('accepts an allow-listed origin and refuses any other', async () => {
+    assert.equal(await attempt('https://portal.example.com'), 'open');
+    assert.equal(await attempt('https://evil.example'), 'refused 403');
+  });
+});

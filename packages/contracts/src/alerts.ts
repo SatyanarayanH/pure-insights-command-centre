@@ -62,6 +62,13 @@ export const AlertSchema = z
       .meta({ description: 'Breaching observations folded into this alert.' }),
     reopenCount: z.number().int(),
     isFlapping: z.boolean(),
+    healthyStreak: z.number().int().meta({
+      description:
+        'Consecutive healthy observations since the last breach. Above 0 on an open alert means it is recovering: the latest reading was fine but the alert has not cleared yet.',
+    }),
+    resolveAfter: z.number().int().meta({
+      description: 'Healthy observations in a row needed before this alert resolves.',
+    }),
     firstSeenAt: IsoDateTimeSchema,
     lastSeenAt: IsoDateTimeSchema,
     resolvedAt: IsoDateTimeSchema.nullable(),

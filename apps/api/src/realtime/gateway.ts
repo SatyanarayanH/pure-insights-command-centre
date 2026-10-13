@@ -108,8 +108,10 @@ export class RealtimeGateway {
     }
     // A ticket can only be minted with a bearer token, which a cross-site page does not have;
     // the Origin check is defence in depth against cross-site WebSocket hijacking.
+    // The page that the API itself serves is same-origin and always allowed; anything else
+    // must be on the allow-list.
     const origin = req.headers.origin;
-    if (this.options.enforceOrigin && origin && !this.options.allowedOrigins.includes(origin)) {
+    if (this.options.enforceOrigin && origin && !this.isAllowedOrigin(origin, req.headers.host)) {
       socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
       socket.destroy();
       return;
@@ -129,6 +131,15 @@ export class RealtimeGateway {
         parseEventId(url.searchParams.get('lastEventId')),
       );
     });
+  }
+
+  private isAllowedOrigin(origin: string, host: string | undefined): boolean {
+    if (this.options.allowedOrigins.includes(origin)) return true;
+    try {
+      return host !== undefined && new URL(origin).host === host;
+    } catch {
+      return false;
+    }
   }
 
   private onConnection(

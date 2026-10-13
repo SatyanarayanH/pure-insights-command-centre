@@ -50,6 +50,7 @@ const AlertUpdatedData = z.object({
     'snoozed',
     'rerouted',
     'reopened',
+    'recovering',
   ]),
 });
 const AlertResolvedData = z.object({ alert: AlertSchema });
@@ -108,7 +109,7 @@ export const SERVER_EVENT_DEFINITIONS = {
     topic: 'alerts',
     summary: 'An open alert changed',
     description:
-      'Another breaching observation was folded in (`occurrence`), severity moved, or a person acknowledged or snoozed it.',
+      'Another breaching observation was folded in (`occurrence`), severity moved, a healthy observation arrived but not yet enough to clear it (`recovering`), or a person acknowledged or snoozed it.',
   },
   'alert.resolved': {
     data: AlertResolvedData,

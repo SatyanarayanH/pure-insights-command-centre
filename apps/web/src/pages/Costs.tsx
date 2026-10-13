@@ -433,6 +433,13 @@ function Body({ summary }: { summary: CostSummary }) {
         />
       </div>
 
+      <Note>
+        Figures on this page are illustrative. Credits are priced at an assumed $
+        {summary.creditPriceUsd.toFixed(2)} each, not a contract rate, and the query-level Snowflake
+        logs are simulated from the case-study dataset's per-report totals. They are not production
+        logs.
+      </Note>
+
       {summary.scope === 'own' && (
         <Note tone="accent">
           You are seeing cost for the reports you own. Platform-wide reconciliation and chargeback

@@ -304,6 +304,11 @@ function Detail({ report }: { report: ReportDetail }) {
                       status={alert.status}
                       flapping={alert.isFlapping}
                       snoozed={Boolean(alert.snoozedUntil)}
+                      recovering={
+                        alert.healthyStreak > 0
+                          ? { healthy: alert.healthyStreak, needed: alert.resolveAfter }
+                          : null
+                      }
                     />
                   </td>
                   <td className={`${td} text-right`}>

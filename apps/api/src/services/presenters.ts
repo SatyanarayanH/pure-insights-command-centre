@@ -71,6 +71,8 @@ export function presentAlert(
     occurrences: record.occurrences,
     reopenCount: record.reopenCount,
     isFlapping: record.reopenCount >= FLAPPING_REOPEN_COUNT,
+    healthyStreak: record.status === 'resolved' ? 0 : record.okStreak,
+    resolveAfter: ctx.rules().find((rule) => rule.id === record.ruleId)?.resolveAfter ?? 1,
     firstSeenAt: record.firstSeenAt,
     lastSeenAt: record.lastSeenAt,
     resolvedAt: record.resolvedAt,
