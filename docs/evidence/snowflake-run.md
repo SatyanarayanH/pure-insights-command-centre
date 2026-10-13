@@ -1,6 +1,6 @@
 # Snowflake validation run
 
-Run at 2026-10-13T16:51:46.894Z against Snowflake 10.37.100 in AWS_AP_SOUTHEAST_7, warehouse COMPUTE_WH, database PURE_INSIGHTS_SIM.
+Run at 2026-10-13T19:40:31.057Z against Snowflake 10.37.100 in AWS_AP_SOUTHEAST_7, warehouse COMPUTE_WH, database PURE_INSIGHTS_SIM.
 
 The same SQL files were executed on DuckDB and on Snowflake, from the same generated input files, and every mart was compared row by row.
 
@@ -8,17 +8,17 @@ The same SQL files were executed on DuckDB and on Snowflake, from the same gener
 
 | File | Statements | Duration (ms) |
 | --- | --- | --- |
-| 00_setup.sql | 14 | 2650 |
-| loaders/snowflake_load.sql | 14 | 208736 |
-| 01_staging_clean.sql | 6 | 3614 |
-| 02_attribution_direct.sql | 4 | 3485 |
-| 03_attribution_time_weighted.sql | 6 | 4143 |
-| 04_unit_economics.sql | 4 | 2993 |
-| 05_chargeback.sql | 3 | 1675 |
-| 06_cost_anomalies.sql | 3 | 2437 |
-| 07_reconciliation_tests.sql | 1 | 1245 |
+| 00_setup.sql | 14 | 3650 |
+| loaders/snowflake_load.sql | 14 | 136905 |
+| 01_staging_clean.sql | 6 | 3530 |
+| 02_attribution_direct.sql | 4 | 3011 |
+| 03_attribution_time_weighted.sql | 6 | 4362 |
+| 04_unit_economics.sql | 4 | 2887 |
+| 05_chargeback.sql | 3 | 2128 |
+| 06_cost_anomalies.sql | 3 | 2462 |
+| 07_reconciliation_tests.sql | 1 | 1320 |
 
-Total: 231202 ms on Snowflake, 2026 ms on DuckDB.
+Total: 160486 ms on Snowflake, 1549 ms on DuckDB.
 
 ## Reconciliation checks on Snowflake
 

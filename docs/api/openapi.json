@@ -1856,7 +1856,7 @@
           "Telemetry"
         ],
         "summary": "Push report observations",
-        "description": "The integration point for the portal: one event per dashboard load or refresh. Authenticate with `X-API-Key` (service) or a bearer token holding `telemetry:ingest`. Each event is validated on its own; rejected events are listed in the response and the rest are processed.\n\nRequires permission `telemetry:ingest` (roles: Platform Admin).",
+        "description": "The integration point for the portal: one event per dashboard load or refresh, up to 1,000 per request. Authenticate with `X-API-Key` (service) or a bearer token holding `telemetry:ingest`. Each event is validated on its own; rejected events are listed in the response and the rest are processed. Give each event an `eventId` and a request can be resent safely after a timeout: events already processed are counted in `duplicates` and not applied again.\n\nRequires permission `telemetry:ingest` (roles: Platform Admin).",
         "security": [
           {
             "apiKey": []
@@ -1954,6 +1954,108 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/telemetry/series": {
+      "get": {
+        "operationId": "getTelemetrySeries",
+        "tags": [
+          "Telemetry"
+        ],
+        "summary": "Live load time and refresh outcomes over the last hours",
+        "description": "Built from the stored readings, in fixed clock-aligned buckets: median, 95th percentile and maximum load time, plus breaches and refresh failures. A bucket with no readings is returned empty, so a gap in the feed is visible. With `reportId`, also returns the most recent individual readings.\n\nRequires permission `reports:read` (roles: Platform Admin, FinOps Analyst, Report Owner, Viewer).\n\nRow-level security: Report Owners only see their own reports.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1h",
+              "type": "string",
+              "enum": [
+                "1h",
+                "6h",
+                "24h"
+              ]
+            }
+          },
+          {
+            "name": "reportId",
+            "in": "query",
+            "required": false,
+            "description": "Report identifier",
+            "schema": {
+              "type": "string",
+              "pattern": "^RPT_\\d{1,6}$",
+              "example": "RPT_203"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetrySeries"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "reports:read",
+        "x-allowed-roles": [
+          "admin",
+          "finops",
+          "owner",
+          "viewer"
+        ],
+        "x-row-level-security": true
       }
     },
     "/api/v1/costs/summary": {
@@ -3025,6 +3127,204 @@
         }
       }
     },
+    "/api/v1/notifications": {
+      "get": {
+        "operationId": "listNotifications",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Alert notifications sent, pending, failed or only recorded",
+        "description": "Every notification is written here before delivery is attempted. `skipped` means no webhook is configured (NOTIFY_WEBHOOK_URL), so the notification was recorded and not sent.\n\nRequires permission `notifications:read` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/NotificationStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed validation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "notifications:read",
+        "x-allowed-roles": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/warehouse/refresh": {
+      "post": {
+        "operationId": "refreshWarehouse",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Re-read the warehouse now, without a restart",
+        "description": "Audited. Fetches a fresh snapshot from the configured source and swaps it in if it is newer and passes every reconciliation check. On failure the previous data stays in service and the reason is returned. Also runs on a schedule when WAREHOUSE_REFRESH_MIN is set.\n\nRequires permission `warehouse:refresh` (roles: Platform Admin).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseRefreshResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the required permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permission": "warehouse:refresh",
+        "x-allowed-roles": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/system/status": {
       "get": {
         "operationId": "getSystemStatus",
@@ -3142,7 +3442,7 @@
             "type": "string"
           },
           "value": {
-            "description": "Latest observed value (seconds for latency, streak length for refresh).",
+            "description": "Latest observed value (seconds for latency, streak length for refresh, minutes of silence for stale telemetry).",
             "type": [
               "number",
               "null"
@@ -3308,7 +3608,7 @@
             "type": "string"
           },
           "value": {
-            "description": "Latest observed value (seconds for latency, streak length for refresh).",
+            "description": "Latest observed value (seconds for latency, streak length for refresh, minutes of silence for stale telemetry).",
             "type": [
               "number",
               "null"
@@ -3507,7 +3807,7 @@
             "description": "True for the two conditions the case-study brief mandates."
           },
           "warningThreshold": {
-            "description": "Latency: seconds above which a warning fires.",
+            "description": "Latency: seconds above which a warning fires. Stale telemetry: minutes without a reading before the alert fires.",
             "type": [
               "number",
               "null"
@@ -3567,7 +3867,8 @@
           "latency",
           "refresh_failure",
           "refresh_unknown",
-          "invalid_telemetry"
+          "invalid_telemetry",
+          "telemetry_stale"
         ]
       },
       "AlertSource": {
@@ -3576,7 +3877,8 @@
           "backfill",
           "live",
           "injected",
-          "api"
+          "api",
+          "monitor"
         ]
       },
       "AlertStats": {
@@ -4659,6 +4961,130 @@
         ],
         "description": "Load-time tier: WARNING above 15 s, HIGH above 30 s, CRITICAL above 45 s (defaults)."
       },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NotificationKind"
+          },
+          "alertId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reportId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recipient": {
+            "type": "string",
+            "description": "Owner email, or `platform-admins` when the report has no owner or the matter is system-wide."
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/NotificationChannel"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NotificationStatus"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp (UTC)",
+            "format": "date-time"
+          },
+          "sentAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 timestamp (UTC)",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "alertId",
+          "reportId",
+          "severity",
+          "recipient",
+          "title",
+          "body",
+          "channel",
+          "status",
+          "attempts",
+          "lastError",
+          "createdAt",
+          "sentAt"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationChannel": {
+        "type": "string",
+        "enum": [
+          "webhook",
+          "none"
+        ],
+        "description": "none: no webhook is configured, so notifications are recorded but not sent."
+      },
+      "NotificationKind": {
+        "type": "string",
+        "enum": [
+          "fired",
+          "escalated",
+          "reopened",
+          "resolved",
+          "unacknowledged",
+          "feed_silent",
+          "feed_recovered",
+          "warehouse_refresh_failed"
+        ],
+        "description": "unacknowledged: nobody took a high-severity alert within the escalation window, so it went to the platform admins. feed_silent: no telemetry is arriving at all."
+      },
+      "NotificationStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "sent",
+          "failed",
+          "skipped"
+        ],
+        "description": "pending: waiting to be delivered or retried. failed: gave up after the retry limit. skipped: no channel is configured, so it was only recorded."
+      },
       "OrphanQueue": {
         "type": "object",
         "properties": {
@@ -5309,7 +5735,9 @@
           "audit:read",
           "telemetry:ingest",
           "incidents:inject",
-          "simulator:control"
+          "simulator:control",
+          "notifications:read",
+          "warehouse:refresh"
         ]
       },
       "Persona": {
@@ -6057,6 +6485,47 @@
               },
               "reconciliationTotal": {
                 "type": "integer"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "duckdb",
+                  "snowflake"
+                ],
+                "description": "Where the cost model is read from. Set with WAREHOUSE."
+              },
+              "refreshEveryMin": {
+                "type": "integer",
+                "description": "0: scheduled refresh is off."
+              },
+              "lastRefreshAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "ISO-8601 timestamp (UTC)",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lastRefreshOutcome": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/WarehouseRefreshOutcome"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lastRefreshError": {
+                "description": "Set when the last refresh failed. The previous data stays in service.",
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -6064,7 +6533,12 @@
               "builtAt",
               "suiteDurationMs",
               "reconciliationPassed",
-              "reconciliationTotal"
+              "reconciliationTotal",
+              "source",
+              "refreshEveryMin",
+              "lastRefreshAt",
+              "lastRefreshOutcome",
+              "lastRefreshError"
             ],
             "additionalProperties": false
           },
@@ -6094,6 +6568,80 @@
           },
           "simulator": {
             "$ref": "#/components/schemas/SimulatorState"
+          },
+          "telemetry": {
+            "type": "object",
+            "properties": {
+              "lastReceivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "ISO-8601 timestamp (UTC)",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "feedSilent": {
+                "type": "boolean",
+                "description": "True when no telemetry at all has arrived for longer than the feed-silence window."
+              },
+              "feedSilentAfterSec": {
+                "type": "integer"
+              },
+              "observationsStored": {
+                "type": "integer"
+              },
+              "retentionDays": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "lastReceivedAt",
+              "feedSilent",
+              "feedSilentAfterSec",
+              "observationsStored",
+              "retentionDays"
+            ],
+            "additionalProperties": false
+          },
+          "notifications": {
+            "type": "object",
+            "properties": {
+              "channel": {
+                "$ref": "#/components/schemas/NotificationChannel"
+              },
+              "minSeverity": {
+                "$ref": "#/components/schemas/Severity"
+              },
+              "escalateAfterMin": {
+                "type": "integer"
+              },
+              "pending": {
+                "type": "integer"
+              },
+              "sent": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "skipped": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "channel",
+              "minSeverity",
+              "escalateAfterMin",
+              "pending",
+              "sent",
+              "failed",
+              "skipped"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -6103,7 +6651,9 @@
           "demoMode",
           "warehouse",
           "realtime",
-          "simulator"
+          "simulator",
+          "telemetry",
+          "notifications"
         ],
         "additionalProperties": false
       },
@@ -6112,6 +6662,10 @@
         "properties": {
           "accepted": {
             "type": "integer"
+          },
+          "duplicates": {
+            "type": "integer",
+            "description": "Events whose `eventId` had already been processed. They are acknowledged and ignored, so an emitter can safely resend a batch after a timeout."
           },
           "rejected": {
             "type": "array",
@@ -6141,9 +6695,166 @@
         },
         "required": [
           "accepted",
+          "duplicates",
           "rejected",
           "alertsFired",
           "alertsResolved"
+        ],
+        "additionalProperties": false
+      },
+      "TelemetrySeries": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "type": "string",
+            "enum": [
+              "1h",
+              "6h",
+              "24h"
+            ]
+          },
+          "bucketMinutes": {
+            "type": "integer"
+          },
+          "thresholdSec": {
+            "type": "number"
+          },
+          "reportId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^RPT_\\d{1,6}$",
+                "description": "Report identifier",
+                "example": "RPT_203"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "observations": {
+                "type": "integer"
+              },
+              "latencyBreaches": {
+                "type": "integer"
+              },
+              "refreshFailures": {
+                "type": "integer"
+              },
+              "reports": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "observations",
+              "latencyBreaches",
+              "refreshFailures",
+              "reports"
+            ],
+            "additionalProperties": false
+          },
+          "buckets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "description": "ISO-8601 timestamp (UTC)",
+                  "format": "date-time"
+                },
+                "observations": {
+                  "type": "integer"
+                },
+                "p50LoadSec": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "p95LoadSec": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "maxLoadSec": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "latencyBreaches": {
+                  "type": "integer"
+                },
+                "refreshFailures": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "start",
+                "observations",
+                "p50LoadSec",
+                "p95LoadSec",
+                "maxLoadSec",
+                "latencyBreaches",
+                "refreshFailures"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "observedAt": {
+                  "type": "string",
+                  "description": "ISO-8601 timestamp (UTC)",
+                  "format": "date-time"
+                },
+                "loadTimeSec": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "refreshStatus": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RefreshStatus"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "observedAt",
+                "loadTimeSec",
+                "refreshStatus",
+                "source"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The most recent individual readings. Only returned for a single report."
+          }
+        },
+        "required": [
+          "window",
+          "bucketMinutes",
+          "thresholdSec",
+          "reportId",
+          "totals",
+          "buckets",
+          "points"
         ],
         "additionalProperties": false
       },
@@ -6189,6 +6900,42 @@
           "permissions"
         ],
         "additionalProperties": false
+      },
+      "WarehouseRefreshOutcome": {
+        "type": "string",
+        "enum": [
+          "refreshed",
+          "unchanged",
+          "failed"
+        ],
+        "description": "refreshed: new data is live. unchanged: the warehouse has not been rebuilt since the last read. failed: the previous data stays in service."
+      },
+      "WarehouseRefreshResult": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/WarehouseRefreshOutcome"
+          },
+          "builtAt": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "outcome",
+          "builtAt",
+          "durationMs",
+          "error"
+        ],
+        "additionalProperties": false
       }
     }
   },
@@ -6210,7 +6957,9 @@
       "audit:read",
       "telemetry:ingest",
       "incidents:inject",
-      "simulator:control"
+      "simulator:control",
+      "notifications:read",
+      "warehouse:refresh"
     ],
     "roles": {
       "admin": {
@@ -6233,7 +6982,9 @@
           "audit:read",
           "telemetry:ingest",
           "incidents:inject",
-          "simulator:control"
+          "simulator:control",
+          "notifications:read",
+          "warehouse:refresh"
         ]
       },
       "finops": {

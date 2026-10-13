@@ -22,7 +22,10 @@ The Command Centre restores the administrative visibility the business lost when
 | Event bus | Numbers every event and keeps a bounded buffer for replay. |
 | Real-time gateway | Delivers events over WebSocket and SSE, applying the same access rules as the REST API to each recipient. |
 | Warehouse | DuckDB locally, Snowflake in production. Built by the SQL suite in `sql/`; the API refuses to start if its reconciliation checks fail. |
-| Operational store | SQLite locally, Postgres in production. Users, sessions, alerts, owner assignments, audit log. |
+| Operational store | SQLite locally, Postgres in production. Users, sessions, alerts, owner assignments, audit log, stored readings, notifications. |
+| Staleness monitor | Notices when data stops arriving: from everything (the feed is down) or from one report (a stale alert). |
+| Notifier | Posts alert notifications to a webhook, with routing, escalation and retry. |
+| Edge node (optional) | Holds WebSocket and SSE connections and nothing else, fed from Redis. Any number can run behind a load balancer. |
 
 ## 2. Conventions
 
@@ -183,6 +186,8 @@ The full list is in Appendix A. This section explains the resources whose behavi
 
 Each event needs a `reportId` and at least one of `loadTimeSec`, `refreshStatus`, `creditsConsumed`.
 
+`eventId` is optional and makes delivery idempotent. It is a unique string of the emitter's choosing (8 to 100 characters from letters, digits and `. : - _`). An event whose id has already been processed is acknowledged and not applied again, so a request that timed out can simply be sent again: nothing is double-counted and no failure streak grows. A resend is recognised for as long as readings are kept (seven days by default).
+
 `observedAt` is optional and defaults to the time of receipt. When supplied it must be ISO-8601 with a time zone, and the event is rejected if the timestamp is more than five minutes in the future or older than the newest observation already held for that report. A late event would otherwise overwrite the report's current state with a stale one.
 
 Events are validated one by one, so a malformed event does not reject the batch. The response is `202 Accepted`:
@@ -190,6 +195,7 @@ Events are validated one by one, so a malformed event does not reject the batch.
 ```json
 {
   "accepted": 1,
+  "duplicates": 0,
   "rejected": [{ "index": 1, "reason": "Unknown report RPT_999999" }],
   "alertsFired": 1,
   "alertsResolved": 0
@@ -200,11 +206,22 @@ Negative `creditsConsumed` is accepted on purpose. Refusing it would hide a brok
 
 Within a batch, state changes and alert changes are written in one transaction and events are broadcast only after it commits. A client is never told about an alert that a rollback then erases.
 
+Every accepted reading is also stored. `GET /telemetry/series?window=1h|6h|24h` returns live load time in fixed, clock-aligned buckets (2, 10 or 30 minutes): median, 95th percentile and maximum, with counts of slow readings and failed refreshes. A bucket with no readings is returned empty, so a gap in the feed is visible as a gap. With `reportId` it also returns the most recent individual readings. Row-level scope applies.
+
 ### 5.5 Cost and data quality
 
 `GET /costs/summary` returns cost by period for the reports in scope. Callers with scope `all` also receive `platform`: how the metered bill splits into report credits, idle time, unattributed workloads and quarantined figures, and how the three attribution methods compare. `GET /costs/reports` gives unit economics per report for `latest`, `lifetime` or a numbered period. `GET /costs/chargeback` gives cost by owner with the unowned pool as its own line. `GET /costs/anomalies` lists zombie reports, orphaned spend, zero-view spend and quarantined figures, each with a monthly dollar impact.
 
 `GET /dq/summary` returns every data-quality rule with its row count and the reconciliation checks. `GET /dq/findings` returns individual violations, each with the line number of the source file it came from. `GET /dq/quarantine` returns the rows withheld from cost attribution alongside the estimate that replaces them.
+
+### 5.6 Operations
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /system/status` | Build, warehouse source and last refresh, whether telemetry is arriving, notification channel and counts, connected clients. Readable by every signed-in role, because "is this data live?" concerns everyone. |
+| `GET /notifications` | Every alert notification: sent, pending, failed, or only recorded because no webhook is configured. Admins only. |
+| `POST /admin/warehouse/refresh` | Re-reads the warehouse now. Returns `refreshed`, `unchanged` or `failed`; on failure the previous data stays in service and the reason is returned. Audited. |
+| `GET /metrics` (not under `/api/v1`) | Prometheus text format. Needs a bearer token when `METRICS_TOKEN` is set; otherwise served only in development and demo mode. |
 
 ## 6. Alerting model
 
@@ -223,12 +240,15 @@ So the engine adds a lifecycle on top of the literal rule:
 | Flap detection | `reopenCount` of 2 or more sets `isFlapping`. Clients stop notifying for it. |
 | Routing | To the report's owner. If the report has no owner, to administrators with `escalated: true`: an alert on an orphaned report would otherwise notify nobody. |
 | Acknowledge and snooze | A person takes the alert, or silences it for a while. Both are audited and broadcast. |
+| Stale telemetry | A fifth rule, `telemetry_stale`, judges the absence of a reading: a report silent for 30 minutes while the rest of the feed arrives gets a warning, high after 120. If the whole feed is silent the system says so once (`system.notice`, code `telemetry.feed_silent`) and raises no per-report alerts: one cause, one message. |
 
 Rule evaluation is a pure function of the rule and the observation. Three boundary decisions are fixed in tests:
 
 - "Exceeds 15 seconds" is strictly greater than. Exactly 15.0 s is not a breach.
 - `TIMED_OUT` counts as a refresh failure, the same as `FAILED`.
 - `UNKNOWN` is neither a failure nor a success. It does not open a refresh-failure alert, does not resolve one, and does not extend a failure streak. It raises its own low-severity `refresh_unknown` alert, because not knowing whether data is fresh is a monitoring gap in its own right.
+
+**Notifications.** The stream reaches people who are looking; a webhook reaches those who are not. An alert is announced once when it opens at high severity or above, once for each higher severity it reaches, once to the administrators if nobody acknowledges it within 15 minutes, and once when it resolves. Snoozed and flapping alerts are not announced, and a burst is sent as one digest. Each notification is written to a table before delivery is attempted and retried with backoff, so a webhook outage or a restart loses none. Details: `docs/operations.md`.
 
 On first start the engine replays the dataset's 20 periods through the same pipeline, oldest first. The alert history a new installation shows is therefore computed, not seeded: streaks, reopen counts and timelines come from the real data.
 
@@ -386,7 +406,8 @@ The complete catalogue with schemas is in Appendix A and `asyncapi.json`. An ale
 - **Resume.** The server keeps the most recent 2,000 events. A client that reconnects with `lastEventId` receives everything after it, filtered by its topics and its access, before live events continue. `connection.ready.replayed` says how many are coming.
 - **Gap.** If the requested id has already left the buffer, the server sends `replay.gap` with `oldestAvailable`. The client must then refetch current state over REST. Live events continue normally.
 - **Restart.** Event ids start again from 1 when the server restarts, so an id is only meaningful within the stream that issued it. `connection.ready` carries a `streamId`; the client returns it with `lastEventId`. If it does not match the current stream, nothing is replayed, `resumedFrom` is null, and the server sends `replay.gap`. The client must then forget its old id. Without this, a client holding id 5000 from before a restart would discard every new event as already seen.
-- **Not guaranteed.** Events published while no buffer entry survives (a server restart) are lost to the stream; REST remains the source of truth, and a client should refetch after any reconnect that reports a gap.
+- **With Redis.** When the server is configured with `REDIS_URL` the stream is held in Redis and outlives the process: after a restart the `streamId` is unchanged, numbering carries on, and a resume succeeds with no gap. The protocol is the same whether a client is connected to the core or to an edge node, and a client may reconnect to a different node from the one it left.
+- **Not guaranteed.** Without Redis, a restart begins a new stream; REST remains the source of truth, and a client should refetch after any reconnect that reports a gap.
 
 ### 7.8 Liveness, limits and close codes
 
@@ -443,7 +464,11 @@ Queries with no tag, a tag that is not JSON, or a `report_id` that is not in the
 | Schema changes | The operational database carries a schema version and upgrades itself in place on start. |
 | Malformed input | A request line or frame the server cannot parse is dropped at the socket; it cannot raise an exception outside a handler. |
 | Shutdown | On SIGTERM the server stops the simulator, closes streams with code 1001, drains HTTP and closes the database. |
-| Scale-out | The event bus is the seam. Behind a load balancer, `publish` writes to a shared log (Redis Streams, or SNS with a queue per node) and each node delivers to its own connections; event ids become stream offsets. Tickets move to the shared store. Nothing else changes. |
+| Metrics | `GET /metrics` in the Prometheus text format: requests and latency by route pattern, telemetry outcomes, open alerts, connections, notification backlog, warehouse freshness, event-loop delay. |
+| Data stops arriving | Detected, announced once, and shown as a banner on every page (section 6). |
+| Warehouse refresh | On a schedule (`WAREHOUSE_REFRESH_MIN`) or on demand, without a restart. A snapshot that fails reconciliation is refused and the previous one stays in service. |
+| Scale-out | With `REDIS_URL`, the core mirrors every event to a Redis Stream and mints tickets in Redis. Nodes started with `ROLE=edge` follow the stream and serve `/ws` and `/api/v1/stream`; a load balancer sends those two paths to them and everything else to the core. An edge has no database: the ticket carries who the caller is, and each event carries who may see it. Verified with one core and two edges, including a core restart that dropped no connection (`docs/evidence/redis-scale-out.md`). |
+| Capacity | One process: about 100,000 pushed messages a second comfortably, saturated near 200,000, at which point it slows the emitter rather than losing events. With two edges, the load that saturated one process is served with the emitter's request time back in tens of milliseconds (`docs/evidence/load-test.md`). |
 
 ## 10. Trying it
 

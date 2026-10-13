@@ -16,6 +16,10 @@ Passing tests show that the code does what its author expected. This page is abo
 | Persistence | Restart on the same database; upgrade of a database written by an older build | `apps/api/test/hardening.test.ts` |
 | Contract | Every response validated against its schema; committed OpenAPI and AsyncAPI compared with the code | `apps/api/test/docs.test.ts` |
 | Browser | Per-role journeys, and a sweep of every page for console errors, failed requests, broken values, sideways scroll and WCAG 2 AA violations, in light and dark | `e2e/` |
+| Operations | Safe resends, stored readings, "no data" detection, notifications (one over real HTTP), metrics, warehouse refresh | `apps/api/test/production.test.ts` |
+| Several nodes | Tickets and the event stream in Redis; an edge node with no database enforcing the same access rules; restart and edge failure | `apps/api/test/redis.test.ts`, `tools/verify-scale-out.ts` |
+| Snowflake, live | The application's whole snapshot read from Snowflake and compared value by value with DuckDB; then the application run on it | `tools/snowflake/live-read.ts` |
+| Load | Hundreds of connected clients with telemetry arriving fast; delivery checked per client | `tools/load-test.ts` |
 
 ## What the bug hunt found
 
@@ -72,9 +76,23 @@ All of these were real, all are fixed, and each has a regression test.
 | Most pages scrolled sideways on phones and tablets. | Grid tracks sized to their widest content; visually hidden text escaping a scroll container | Explicit track sizing; scroll containers are positioned. |
 | Several labels hard-coded "20 periods" and "2,000". | Written against one file | Counts come from the data. |
 
+### Found while making it ready to operate
+
+Building the operational features (see `operations.md`) was a second round of looking for trouble, with new tools: a load generator, a second database engine read live, and more than one node.
+
+| Defect | Found by | Fix |
+| --- | --- | --- |
+| The two engines disagreed on three result sets the application reads: one printed a number as `40.0` and the other as `40` in two text columns, and one query had no `ORDER BY`. | Comparing the application's whole snapshot from Snowflake with DuckDB, value by value. The earlier table-level comparison had not looked at those columns. | Text is taken from the source file or formatted through a fixed-scale decimal; every snapshot query is ordered on a unique key. All 128,000 values now match. |
+| One process spent most of its time serialising the same event again for every connection. | The load test: a ceiling of about 155,000 pushed messages a second. | Each event is rendered once per class of recipient and the same text is written to every socket in the class. A test asserts every recipient in a class would have received byte-identical output. Ceiling about 200,000. |
+| A live chart could show data up to five seconds old after an action the user had just taken. | A browser test that injected an incident and reloaded. | The chart's cache is reused only while no new reading has arrived, so it is never stale. |
+| The Admin tab bar pushed the page sideways on a phone once it had five tabs. | The existing layout sweep. | The header's action area is bounded; a long control scrolls inside itself. |
+| With the simulator running, a webhook would have received several messages a minute. | Watching the Notifications tab on a live system. | Notifications start at `high` severity, and a burst is delivered as one digest. |
+| The PDF builder called JavaScript's legacy `escape` instead of an HTML escape after a rename. | The linter. | Renamed consistently; lint is part of `npm run verify`. |
+
 ## What is still not covered
 
-- Load: nothing here measures behaviour under thousands of connections or events per second.
-- Several server processes: the event bus and ticket store are in memory (see `production-path.md`).
-- Real `SNOWFLAKE.ACCOUNT_USAGE`: the SQL ran on Snowflake, against simulated usage tables.
+- Several cores: the operational store is SQLite, so there is one. The connection tier scales (see `evidence/redis-scale-out.md`); the write path does not yet.
+- Managed Redis on AWS (TLS, failover, cluster mode) and anything needing real cloud networking.
+- Load from more than one machine: the load generator ran on the same laptop as the servers.
+- Real `SNOWFLAKE.ACCOUNT_USAGE`: the application reads real Snowflake, against simulated usage tables.
 - Browsers other than Chromium.

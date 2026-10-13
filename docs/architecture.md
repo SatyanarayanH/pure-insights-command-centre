@@ -33,6 +33,10 @@ tools/           Snowflake runner, PDF builder, packaging
 
 **A telemetry event arrives.** Whoever sends it (the portal over HTTP, the built-in simulator, the incident injector) it takes one path: validate, update the report's state, evaluate every rule, apply the alert lifecycle, commit. Only after the commit are events published to the bus, and the gateway renders each one separately for every connected user.
 
+**Nothing arrives.** A monitor sweeps every 30 seconds. If no report has sent anything for five minutes it declares the feed down, once, system-wide. If the feed is alive but one report has been quiet for half an hour, that report gets an ordinary alert. The same sweep escalates alerts nobody has acknowledged and retries notifications that failed to deliver.
+
+**The warehouse changes.** On a schedule or on demand the application fetches a fresh snapshot, checks that it reconciles, and swaps it in. Services read the snapshot through one handle, so the swap is a single assignment they all see.
+
 **A user asks for something.** The route registry authenticates, checks the route's permission, validates the input, calls a service, and (outside production) validates the output against its schema. Services ask the ownership service which reports the caller may see and pass every record through a presenter that removes what the caller may not.
 
 ## Decisions
@@ -79,6 +83,22 @@ Negative credit figures are withheld from attribution and kept. Their cost is es
 
 *Instead of* Vitest and `better-sqlite3`. *Because* the current Vitest release crashes `npm install` on npm 10, and a native add-on is one more thing that can fail on an evaluator's machine. Zero-install tooling was worth more than familiarity.
 
+### 11. Notifications through an outbox
+
+The decision to notify is a row written when the alert event happens; delivery reads rows and retries. *Instead of* calling the webhook from the code path that raised the alert. *Because* a webhook is slow and fails, and telemetry ingest must never wait on it or lose a notification to a crash. The unique key on the row is also what guarantees nobody is told twice.
+
+### 12. Events carry what access control needs
+
+Each event on the bus is stamped with the report's owner and holds the unredacted payload; delivery checks the recipient against the event and redacts. *Instead of* looking ownership up at delivery time. *Because* it makes delivery a pure function of the event and the caller, which is what lets a node with no database (an edge) enforce exactly the same rules as the core, with the same code.
+
+### 13. Redis as an option, and one core
+
+With `REDIS_URL` the event stream and tickets live in Redis, the stream survives restarts, and connection-only edge nodes can share the load. Without it nothing changes. *Instead of* requiring Redis, or pretending the whole application is multi-node. *Because* one-command start with nothing to install is worth keeping, and because the operational store is SQLite: there is honestly one writer. What scales is the tier that holds connections, which is the tier that fills up first. See `docs/operations.md`.
+
+### 14. The warehouse behind a handle
+
+Services hold a handle and read the current snapshot on every call; lookups derived from it are rebuilt once per snapshot. *Instead of* each service copying what it needs at construction. *Because* cost data changes hourly in production, and a restart to pick it up would drop every connection. A snapshot that fails reconciliation is never swapped in.
+
 ## What is tested
 
 | Layer | Tests | What they establish |
@@ -92,4 +112,6 @@ Negative credit figures are withheld from attribution and kept. Their cost is es
 | Documentation | Drift checks | Committed OpenAPI, AsyncAPI and reports equal what the code generates. |
 | Other input files | Dirty, flat, single-row and incomplete variants | The pipeline is not fitted to the one file it was developed against. |
 | Hardening | 20 regression tests | Each defect found by trying to break the system stays fixed. See `docs/testing.md`. |
-| Browser | 8 scenarios + a 14-test sweep | Per-role experience; a live alert crossing two sessions; orphan remediation; no console errors, failed requests, broken values, sideways scroll or WCAG AA violations on any page for any role, light or dark. |
+| Operations | 33 tests | Safe resends, stored readings and trends, "no data" detection, notifications with escalation and retry, metrics, warehouse refresh. See `docs/operations.md`. |
+| Several nodes | 8 tests (need Redis) | Shared tickets, an edge node with no database applying the same access rules, a restart with no gap, a Redis outage. |
+| Browser | 13 scenarios + a 14-test sweep | Per-role experience; a live alert crossing two sessions; orphan remediation; no console errors, failed requests, broken values, sideways scroll or WCAG AA violations on any page for any role, light or dark. |

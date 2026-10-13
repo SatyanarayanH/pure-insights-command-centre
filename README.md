@@ -75,6 +75,7 @@ The full list, with row counts and source line numbers, is generated from the pi
 
 - **Alert lifecycle engine**: [`apps/api/src/alerts/engine.ts`](apps/api/src/alerts/engine.ts), rules in [`rules.ts`](apps/api/src/alerts/rules.ts).
 - **One telemetry pipeline** for the HTTP ingest endpoint, the simulator, the incident injector and the historical backfill; state and alerts commit together and events broadcast only afterwards: [`apps/api/src/telemetry/service.ts`](apps/api/src/telemetry/service.ts).
+- **Five alert rules**: the two the brief mandates, two for what profiling found, and one for data that stops arriving. **Notifications** by webhook with routing, escalation and retry: [`apps/api/src/notifications/service.ts`](apps/api/src/notifications/service.ts).
 - **WebSocket and SSE gateway** with single-use tickets, per-recipient access control, resume by event id, heartbeats and backpressure: [`apps/api/src/realtime/gateway.ts`](apps/api/src/realtime/gateway.ts).
 - **Client** with backoff and jitter, resume, de-duplication and SSE fallback: [`apps/web/src/lib/realtime.ts`](apps/web/src/lib/realtime.ts).
 
@@ -83,13 +84,37 @@ The full list, with row counts and source line numbers, is generated from the pi
 - Eight scripts in Snowflake SQL: [`sql/`](sql/). Three attribution methods compared side by side, unit cost per active view, chargeback, anomalies.
 - **Sixteen reconciliation checks** that fail the build: every billed credit lands in exactly one line.
 - **Verified on real Snowflake.** The same eight files ran unchanged on a Snowflake account (version 10.37, AWS): all 16 reconciliation checks pass there, and every result table (2,000 fact rows included) is identical to the DuckDB run. Evidence: [`docs/evidence/snowflake-run.md`](docs/evidence/snowflake-run.md). DuckDB runs the suite on every build.
+- **The application runs on Snowflake too.** With `WAREHOUSE=snowflake` it reads the marts there instead of building them locally; every value it reads (128,000 of them) matches the local build. Evidence: [`docs/evidence/snowflake-live-read.md`](docs/evidence/snowflake-live-read.md).
 
 ### Code quality and system docs
 
-- **150 tests** (`npm test`) and **22 browser tests** (`npm run test:e2e`). The access matrix is tested for every route against every role, derived from the route registry. How the system was attacked, and what that found, is in [`docs/testing.md`](docs/testing.md).
+- **184 tests** (`npm test`; 192 with a Redis to test against) and **27 browser tests** (`npm run test:e2e`). The access matrix is tested for every route against every role, derived from the route registry. How the system was attacked, and what that found, is in [`docs/testing.md`](docs/testing.md).
 - **The specification cannot drift**: OpenAPI, AsyncAPI, the API reference and the data-quality report are generated from the code, and a test fails if the committed copies are stale.
 - TypeScript strict mode end to end, one lint and format tool, CI workflow in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
-- [Architecture and decisions](docs/architecture.md) · [Assumptions](docs/assumptions.md) · [Path to production](docs/production-path.md)
+- [Architecture and decisions](docs/architecture.md) · [Assumptions](docs/assumptions.md) · [Running it for real](docs/operations.md) · [Path to production](docs/production-path.md)
+
+## Built to run, not only to demo
+
+The brief describes a tool the business will depend on. So beyond the three deliverables, the things an operator would ask for on day one were built and tested. None of them changes the one-command start; each is switched on by configuration. Full detail: [`docs/operations.md`](docs/operations.md).
+
+| For production | What was built | Proof |
+| --- | --- | --- |
+| People must be told | Alert notifications to a webhook (Slack, Teams): to the owner, or to admins if there is none; escalated if nobody acknowledges; retried; bursts sent as one digest | 11 tests, one over real HTTP |
+| A dead feed must not look healthy | "No data" detection: a banner when the whole feed stops, an alert when one report goes quiet | 4 tests |
+| "Is it getting worse now?" | Live readings are stored and charted (median and 95th percentile) | 6 tests |
+| The emitter will retry | Safe resends: an event sent twice is applied once | 4 tests |
+| Operators need to see inside | Metrics endpoint in the Prometheus format | 3 tests |
+| Fresh cost data, no downtime | The warehouse is re-read on a schedule or on demand; data that fails reconciliation is refused | 5 tests |
+| The real warehouse | The application runs on Snowflake directly: 128,000 values identical to the local build | [evidence](docs/evidence/snowflake-live-read.md) |
+| More browsers than one server holds | Redis event stream and connection-only edge nodes; restarting the core drops no connection | 8 tests, [evidence](docs/evidence/redis-scale-out.md) |
+| Know the limit | Load test: 300 clients at 200 events a second with every event delivered a few milliseconds late | [evidence](docs/evidence/load-test.md) |
+
+To see the scale-out stack (one core, two edge nodes, Redis, a load balancer):
+
+```
+docker compose -f docker-compose.scale.yml up --build     # then open http://localhost:4100
+npm run verify:scale-out                                  # 9 checks through the load balancer
+```
 
 ## Tableau Server parity
 
@@ -116,6 +141,9 @@ What the admin views of Tableau Server provided, and what replaces each.
 | `npm run verify` | Lint, typecheck, tests, and the generated-docs drift check |
 | `npm run sql:duckdb` | Run the SQL suite and print the reconciliation table |
 | `npm run sql:snowflake` | Run the same suite on a Snowflake account and compare with DuckDB |
+| `npm run snowflake:live-read` | Read the app's whole snapshot from Snowflake, compare with DuckDB, run the app on it |
+| `npm run load-test` | Many WebSocket clients, telemetry at a fixed rate, delivery checked per client |
+| `npm run verify:scale-out` | Check the Redis scale-out stack through its load balancer |
 | `npm run docs:generate` | Regenerate OpenAPI, AsyncAPI, API reference, data-quality report |
 | `npm run docs:pdf` | Rebuild the specification PDF |
 | `npm run screenshots` / `npm run demo:gif` | Regenerate the README screenshots and the demo recording |
@@ -131,10 +159,12 @@ Configuration is by environment variable; every one has a default. See [`.env.ex
 | ![Alerts](docs/screenshots/06-alerts.png) | ![Orphaned reports](docs/screenshots/05-orphans.png) |
 | ![Cost](docs/screenshots/07-cost.png) | ![Data quality](docs/screenshots/08-data-quality.png) |
 | ![Report detail](docs/screenshots/04-report-detail.png) | ![Access matrix](docs/screenshots/09-access-matrix.png) |
+| ![Notifications](docs/screenshots/12-notifications.png) | ![Admin: incidents, simulator and system status](docs/screenshots/13-admin-status.png) |
 
 ## Scope and limits
 
 - **`ACCOUNT_USAGE` is simulated**, because the dataset contains none. The SQL ran on real Snowflake, but against the simulated tables, not against `SNOWFLAKE.ACCOUNT_USAGE`. The simulator's assumptions are listed in [`docs/assumptions.md`](docs/assumptions.md); the one that matters most is how much the queries behind a negative credit figure really cost.
 - **Demo mode is on by default**: seeded accounts, one-click sign-in, incident injection. Set `DEMO_MODE=false` and `JWT_SECRET` for anything else.
-- **Single process.** The event bus and ticket store are in memory. The path to several nodes is in [`docs/production-path.md`](docs/production-path.md).
+- **One core.** By default everything runs in one process. With Redis, the tier that holds browser connections runs as any number of edge nodes and survives a restart of the core; the core itself stays single because its operational store is SQLite. Moving that to Postgres is the main remaining step: [`docs/production-path.md`](docs/production-path.md).
+- **Not verified on cloud infrastructure.** Redis, Docker and Snowflake were all exercised for real, on one machine. Managed services on AWS were not.
 - **The dataset is the catalogue.** Reports are the 100 in the file; there is no create or delete.

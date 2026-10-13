@@ -1070,7 +1070,7 @@
             "type": "string"
           },
           "value": {
-            "description": "Latest observed value (seconds for latency, streak length for refresh).",
+            "description": "Latest observed value (seconds for latency, streak length for refresh, minutes of silence for stale telemetry).",
             "type": [
               "number",
               "null"
@@ -1235,7 +1235,8 @@
           "latency",
           "refresh_failure",
           "refresh_unknown",
-          "invalid_telemetry"
+          "invalid_telemetry",
+          "telemetry_stale"
         ]
       },
       "AlertSource": {
@@ -1244,7 +1245,8 @@
           "backfill",
           "live",
           "injected",
-          "api"
+          "api",
+          "monitor"
         ]
       },
       "AlertStatus": {

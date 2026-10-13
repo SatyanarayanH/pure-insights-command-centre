@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 430" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13">
+  <title>Scale-out topology with Redis: one core, many edge nodes</title>
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#52514e"/>
+    </marker>
+  </defs>
+  <rect width="980" height="430" fill="#fcfcfb"/>
+
+  <!-- clients -->
+  <rect x="24" y="40" width="170" height="74" rx="10" fill="#e6f0fc" stroke="#2a78d6"/>
+  <text x="109" y="70" text-anchor="middle" font-weight="600" fill="#0b0b0b">Browsers</text>
+  <text x="109" y="90" text-anchor="middle" fill="#52514e">REST + live stream</text>
+
+  <rect x="24" y="300" width="170" height="74" rx="10" fill="#fcfcfb" stroke="#898781" stroke-dasharray="5 4"/>
+  <text x="109" y="330" text-anchor="middle" font-weight="600" fill="#0b0b0b">Pure Insights portal</text>
+  <text x="109" y="350" text-anchor="middle" fill="#52514e">telemetry</text>
+
+  <!-- load balancer -->
+  <rect x="252" y="40" width="120" height="334" rx="10" fill="#f1f0ec" stroke="#c3c2b7"/>
+  <text x="312" y="66" text-anchor="middle" font-weight="600" fill="#0b0b0b">Load balancer</text>
+  <text x="312" y="108" text-anchor="middle" fill="#52514e">/ws</text>
+  <text x="312" y="125" text-anchor="middle" fill="#52514e">/api/v1/stream</text>
+  <text x="312" y="142" text-anchor="middle" fill="#52514e">to the edge tier</text>
+  <text x="312" y="300" text-anchor="middle" fill="#52514e">everything</text>
+  <text x="312" y="317" text-anchor="middle" fill="#52514e">else to the core</text>
+
+  <!-- edge tier -->
+  <rect x="440" y="28" width="250" height="150" rx="12" fill="#f1f0ec" stroke="#c3c2b7"/>
+  <text x="456" y="52" font-weight="600" fill="#0b0b0b">Edge nodes (any number)</text>
+  <rect x="456" y="64" width="218" height="46" rx="8" fill="#fcfcfb" stroke="#c3c2b7"/>
+  <text x="470" y="84" font-weight="600" fill="#0b0b0b">Real-time gateway</text>
+  <text x="470" y="101" fill="#52514e">WebSocket and SSE connections</text>
+  <text x="456" y="134" fill="#52514e">No database. Applies row and field</text>
+  <text x="456" y="151" fill="#52514e">security from what the ticket and the</text>
+  <text x="456" y="168" fill="#52514e">event carry.</text>
+
+  <!-- core -->
+  <rect x="440" y="232" width="250" height="170" rx="12" fill="#f1f0ec" stroke="#c3c2b7"/>
+  <text x="456" y="256" font-weight="600" fill="#0b0b0b">Core (one instance)</text>
+  <rect x="456" y="268" width="218" height="34" rx="8" fill="#fcfcfb" stroke="#c3c2b7"/>
+  <text x="470" y="290" fill="#0b0b0b">REST API, sign-in, tickets</text>
+  <rect x="456" y="310" width="218" height="34" rx="8" fill="#fcfcfb" stroke="#c3c2b7"/>
+  <text x="470" y="332" fill="#0b0b0b">Telemetry pipeline, alert engine</text>
+  <rect x="456" y="352" width="218" height="34" rx="8" fill="#fcfcfb" stroke="#c3c2b7"/>
+  <text x="470" y="374" fill="#0b0b0b">Operational store, warehouse</text>
+
+  <!-- redis -->
+  <rect x="770" y="140" width="186" height="150" rx="12" fill="#fdf1d3" stroke="#b98900"/>
+  <text x="863" y="166" text-anchor="middle" font-weight="600" fill="#0b0b0b">Redis</text>
+  <text x="863" y="192" text-anchor="middle" fill="#52514e">event stream</text>
+  <text x="863" y="209" text-anchor="middle" fill="#52514e">(numbered, replayable,</text>
+  <text x="863" y="226" text-anchor="middle" fill="#52514e">survives restarts)</text>
+  <text x="863" y="254" text-anchor="middle" fill="#52514e">stream tickets</text>
+  <text x="863" y="271" text-anchor="middle" fill="#52514e">(30 s, single use)</text>
+
+  <!-- arrows -->
+  <line x1="194" y1="77" x2="250" y2="77" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow2)"/>
+  <line x1="194" y1="337" x2="250" y2="337" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow2)"/>
+  <line x1="372" y1="104" x2="438" y2="104" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow2)"/>
+  <line x1="372" y1="316" x2="438" y2="316" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+  <path d="M690 300 C 740 300, 740 250, 768 250" fill="none" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow2)"/>
+  <text x="700" y="330" fill="#52514e">publishes events,</text>
+  <text x="700" y="347" fill="#52514e">mints tickets</text>
+
+  <path d="M770 180 C 740 180, 740 104, 692 104" fill="none" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow2)"/>
+  <text x="700" y="70" fill="#52514e">follow the stream,</text>
+  <text x="700" y="87" fill="#52514e">redeem tickets</text>
+</svg>

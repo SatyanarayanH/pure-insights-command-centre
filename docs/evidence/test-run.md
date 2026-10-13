@@ -1,6 +1,6 @@
 # Test run
 
-`npm test` on v23.11.0, 2026-10-13T16:55Z.
+`REDIS_URL=redis://127.0.0.1:6390 npm test` on v23.11.0, 2026-10-13T20:06Z. Without `REDIS_URL` the 8 Redis tests are skipped and 184 run.
 
 ```
 
@@ -137,6 +137,52 @@
 ▶ SQL suite
   ✔ is idempotent: running it twice on the same database gives the same answer
 ✔ SQL suite
+▶ safe resends (idempotent ingest)
+  ✔ applies an event once however many times it is sent
+  ✔ recognises a repeat inside one batch
+  ✔ acknowledges a late resend as a duplicate, not as out of order
+  ✔ still processes events that carry no id, and refuses a malformed one
+✔ safe resends (idempotent ingest)
+▶ stored readings and the live trend
+  ✔ keeps live readings but not the history replayed at start-up
+  ✔ summarises load time into clock-aligned buckets, leaving empty ones empty
+  ✔ moves readings into older buckets as time passes and drops them out of the window
+  ✔ returns the individual readings for one report
+  ✔ limits a report owner to their own reports' readings
+  ✔ deletes readings older than the retention window
+✔ stored readings and the live trend
+▶ noticing when data stops arriving
+  ✔ raises one alert for a report that has gone quiet while the rest of the feed arrives
+  ✔ treats a silent feed as one system problem, not as a hundred stale reports
+  ✔ gives a newly started server a grace period instead of alerting at once
+  ✔ raises nothing when the rule is disabled
+✔ noticing when data stops arriving
+▶ alert notifications
+  ✔ tells the owner once when a high-severity alert opens, and once when it clears
+  ✔ keeps low-severity alerts on the dashboard and notifies when they escalate
+  ✔ sends alerts on unowned reports to the platform admins
+  ✔ escalates to the admins when nobody acknowledges in time, once
+  ✔ respects a snooze
+  ✔ retries a failing webhook with backoff, then gives up and says so
+  ✔ sends a burst as one digest instead of one message each
+  ✔ delivers over real HTTP to a real endpoint
+  ✔ records notifications without sending them when no webhook is configured
+  ✔ can post the structured form instead of the Slack form
+  ✔ is visible to admins only
+✔ alert notifications
+▶ metrics endpoint
+  ✔ reports requests by route pattern, telemetry, alerts and warehouse state
+  ✔ gives an unmatched path one label, whatever the path
+{"level":30,"time":1791921995080,"pid":6943,"hostname":"satyanarayans-MacBook-Air.local","observations":2000,"msg":"alert history backfilled from the dataset"}
+  ✔ requires the token when one is set, and hides in production otherwise
+✔ metrics endpoint
+▶ refreshing the warehouse without a restart
+  ✔ reports "unchanged" when the source has nothing new
+  ✔ swaps in new data for every service at once, and tells connected clients
+  ✔ keeps the previous data when the source is unreachable
+  ✔ refuses new data that fails a reconciliation check
+  ✔ is an admin action
+✔ refreshing the warehouse without a restart
 ▶ role definitions
   ✔ gives the admin every permission and nobody else all of them
   ✔ keeps cost and unmasked email away from viewers, and writes away from finops
@@ -165,6 +211,9 @@
 ▶ machine identity (telemetry emitter)
   ✔ may push telemetry with the API key and nothing else
 ✔ machine identity (telemetry emitter)
+▶ serialising an event once per view class
+  ✔ gives every recipient in a class byte-identical events, and masks for the class that must not see
+✔ serialising an event once per view class
 ▶ event bus
   ✔ numbers events monotonically and replays everything after a given id
   ✔ reports a gap when the requested events have left the buffer
@@ -198,6 +247,20 @@
   ✔ accepts the page the API itself serves (same origin), which is how the Docker image runs
   ✔ accepts an allow-listed origin and refuses any other
 ✔ WebSocket origin check (production)
+▶ Redis: tickets shared between nodes
+  ✔ lets one node mint a ticket and another redeem it, exactly once
+  ✔ expires a ticket and refuses anything that is not shaped like one
+✔ Redis: tickets shared between nodes
+▶ Redis: an edge node that holds connections and nothing else
+  ✔ delivers what the core publishes, under the same access rules, with no database
+  ✔ refuses a ticket that was already used on another node
+  ✔ catches up on what it missed when it starts late
+  ✔ reports that the stream was reset under it, so the node can restart clean
+✔ Redis: an edge node that holds connections and nothing else
+▶ Redis: the event stream outlives the process
+  ✔ carries on numbering after a restart, so a client resumes with no gap
+  ✔ keeps serving its own connections when Redis is unreachable, and counts what it could not mirror
+✔ Redis: the event stream outlives the process
 ▶ csv
   ✔ reads quoted fields, escaped quotes and embedded commas
   ✔ reads the dataset as 2,000 rows with the ten documented columns
@@ -232,12 +295,12 @@
   ✔ rejects alert thresholds that do not increase
   ✔ only admits known WebSocket client messages
 ✔ request schemas
-ℹ tests 150
-ℹ suites 38
-ℹ pass 150
+ℹ tests 192
+ℹ suites 48
+ℹ pass 192
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 19261.209416
+ℹ duration_ms 22332.463625
 ```
