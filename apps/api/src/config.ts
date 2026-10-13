@@ -49,8 +49,13 @@ const EnvSchema = z.object({
 export type Config = ReturnType<typeof loadConfig>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
-  const parsed = EnvSchema.parse(env);
-  if (parsed.NODE_ENV === 'production' && !parsed.JWT_SECRET) {
+  // An empty variable (`JWT_SECRET=` in a compose file) means "not set", not "set to nothing".
+  const parsed = EnvSchema.parse(
+    Object.fromEntries(Object.entries(env).filter(([, value]) => value !== '')),
+  );
+  // A real deployment must bring its own signing key. Demo mode is the one exception: it is
+  // already open by design, so a per-process key is acceptable there and is logged as a warning.
+  if (parsed.NODE_ENV === 'production' && !parsed.JWT_SECRET && !parsed.DEMO_MODE) {
     throw new Error('JWT_SECRET must be set in production (at least 32 characters).');
   }
   return {

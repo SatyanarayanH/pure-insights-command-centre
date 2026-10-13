@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --clear-screen=false src/server.ts",
+    "dev": "tsx watch --clear-screen=false --disable-warning=ExperimentalWarning src/server.ts",
     "build": "tsup",
-    "start": "node dist/server.js",
+    "start": "node --disable-warning=ExperimentalWarning dist/server.js",
     "simulate": "tsx src/cli/simulate.ts",
     "sql:duckdb": "tsx src/cli/run-sql-suite.ts",
-    "docs:generate": "tsx src/cli/generate-docs.ts"
+    "docs:generate": "tsx src/cli/generate-docs.ts",
+    "warehouse:build": "tsx src/cli/build-warehouse.ts"
   },
   "dependencies": {
     "@duckdb/node-api": "^1.5.6-r.1",

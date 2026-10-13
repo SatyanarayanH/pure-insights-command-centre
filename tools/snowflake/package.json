@@ -1,0 +1,10 @@
+{
+  "name": "picc-snowflake-runner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runs the cost allocation SQL suite on a real Snowflake account. Kept out of the main workspaces so the Snowflake driver is only installed by people who need it.",
+  "dependencies": {
+    "snowflake-sdk": "^3.4.0"
+  }
+}

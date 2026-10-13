@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+data/generated
+data/runtime
+.git
+test-results
+playwright-report
+submission
+docs/screenshots
+*.tsbuildinfo
+.env

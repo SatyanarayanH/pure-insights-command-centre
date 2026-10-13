@@ -1,0 +1,21 @@
+# One command:  docker compose up --build
+# Then open     http://localhost:4000
+services:
+  command-centre:
+    build: .
+    image: pure-insights-command-centre:1.0.0
+    ports:
+      - "4000:4000"
+    environment:
+      # Demo mode: seeded personas, one-click sign-in, incident injector.
+      DEMO_MODE: "true"
+      # Leave unset for the demo (a per-process key is generated). Set it for stable sessions.
+      JWT_SECRET: ${JWT_SECRET:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # Alerts, acknowledgements, owner assignments and the audit log survive a restart.
+      - command-centre-state:/app/data/runtime
+    restart: unless-stopped
+
+volumes:
+  command-centre-state:

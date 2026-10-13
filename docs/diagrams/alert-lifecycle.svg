@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 330" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13">
+  <title>Alert lifecycle</title>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#52514e"/>
+    </marker>
+  </defs>
+  <rect width="980" height="330" fill="#fcfcfb"/>
+
+  <circle cx="60" cy="150" r="9" fill="#0b0b0b"/>
+  <text x="60" y="184" text-anchor="middle" fill="#52514e" font-size="12">no alert</text>
+
+  <rect x="200" y="118" width="150" height="64" rx="10" fill="#f9e1e1" stroke="#d03b3b"/>
+  <text x="275" y="146" text-anchor="middle" font-weight="600" fill="#0b0b0b">FIRING</text>
+  <text x="275" y="165" text-anchor="middle" fill="#52514e" font-size="12">condition holds</text>
+
+  <rect x="470" y="118" width="170" height="64" rx="10" fill="#e6f0fc" stroke="#2a78d6"/>
+  <text x="555" y="146" text-anchor="middle" font-weight="600" fill="#0b0b0b">ACKNOWLEDGED</text>
+  <text x="555" y="165" text-anchor="middle" fill="#52514e" font-size="12">someone owns it</text>
+
+  <rect x="770" y="118" width="150" height="64" rx="10" fill="#e3f4e3" stroke="#0ca30c"/>
+  <text x="845" y="146" text-anchor="middle" font-weight="600" fill="#0b0b0b">RESOLVED</text>
+  <text x="845" y="165" text-anchor="middle" fill="#52514e" font-size="12">condition cleared</text>
+
+  <line x1="70" y1="150" x2="199" y2="150" stroke="#52514e" marker-end="url(#a)"/>
+  <text x="134" y="140" text-anchor="middle" fill="#0b0b0b" font-size="12">breach</text>
+  <text x="134" y="168" text-anchor="middle" fill="#52514e" font-size="12">alert.fired</text>
+
+  <line x1="350" y1="150" x2="469" y2="150" stroke="#52514e" marker-end="url(#a)"/>
+  <text x="410" y="140" text-anchor="middle" fill="#0b0b0b" font-size="12">acknowledge</text>
+  <text x="410" y="168" text-anchor="middle" fill="#52514e" font-size="12">alert.updated</text>
+
+  <line x1="640" y1="150" x2="769" y2="150" stroke="#52514e" marker-end="url(#a)"/>
+  <text x="705" y="140" text-anchor="middle" fill="#0b0b0b" font-size="12">healthy x N</text>
+  <text x="705" y="168" text-anchor="middle" fill="#52514e" font-size="12">alert.resolved</text>
+
+  <!-- firing self loop -->
+  <path d="M245 118 C230 60, 320 60, 305 117" fill="none" stroke="#52514e" marker-end="url(#a)"/>
+  <text x="275" y="52" text-anchor="middle" fill="#0b0b0b" font-size="12">breach again: occurrences + 1, severity may change</text>
+  <text x="275" y="36" text-anchor="middle" fill="#52514e" font-size="12">alert.updated (occurrence | escalated | deescalated)</text>
+
+  <!-- firing -> resolved (skip ack) -->
+  <path d="M275 182 C275 250, 845 250, 845 183" fill="none" stroke="#52514e" marker-end="url(#a)"/>
+  <text x="560" y="246" text-anchor="middle" fill="#0b0b0b" font-size="12">healthy x N (N = the rule's resolveAfter) without anyone acknowledging</text>
+
+  <!-- resolved -> firing (reopen) -->
+  <path d="M845 118 C845 86, 420 96, 322 117" fill="none" stroke="#52514e" stroke-dasharray="5 4" marker-end="url(#a)"/>
+  <text x="640" y="86" text-anchor="middle" fill="#0b0b0b" font-size="12">breach within 3 observations: same alert reopens, reopenCount + 1</text>
+
+  <text x="24" y="300" fill="#52514e" font-size="12">One open alert per fingerprint (rule : report). A breach more than 3 healthy observations after a resolve opens a new alert. reopenCount of 2 or more marks the alert as flapping.</text>
+</svg>

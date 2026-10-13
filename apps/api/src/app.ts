@@ -116,21 +116,28 @@ export function createApp(c: Container): App {
   });
 
   const limited = config.env !== 'test';
-  const apiLimiter = rateLimit({
-    windowMs: 60_000,
-    limit: 600,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    skip: () => !limited,
-  });
+  const limiter = (limit: number) =>
+    rateLimit({
+      windowMs: 60_000,
+      limit,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      skip: () => !limited,
+      // Same error shape as everything else, not the library's plain-text default.
+      handler: (_req, _res, next) => {
+        next(
+          new HttpError(
+            429,
+            'rate_limited',
+            'Too many requests',
+            'Rate limit exceeded. Retry after the window resets.',
+          ),
+        );
+      },
+    });
+  const apiLimiter = limiter(600);
   // Credential endpoints get a far tighter budget than the rest of the API.
-  const authLimiter = rateLimit({
-    windowMs: 60_000,
-    limit: 20,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    skip: () => !limited,
-  });
+  const authLimiter = limiter(20);
 
   const routes = buildRoutes(c);
   const api = Router();

@@ -17,7 +17,7 @@
     "start": "npm run start -w @picc/api",
     "test": "node --import tsx --disable-warning=ExperimentalWarning --test --test-concurrency=1 --test-reporter=spec \"apps/api/test/**/*.test.ts\" \"packages/contracts/test/**/*.test.ts\"",
     "test:e2e": "playwright test",
-    "typecheck": "tsc -p packages/contracts && tsc -p apps/api && tsc -p apps/web",
+    "typecheck": "tsc -p packages/contracts && tsc -p apps/api && tsc -p apps/web && tsc -p tools/snowflake",
     "lint": "biome check .",
     "format": "biome check --write .",
     "simulate": "npm run simulate -w @picc/api",
@@ -28,7 +28,9 @@
     "package": "node tools/package-submission.mjs",
     "verify": "npm run lint && npm run typecheck && npm test && npm run docs:check",
     "docs:check": "npm run docs:generate -w @picc/api -- --check",
-    "screenshots": "SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts"
+    "screenshots": "SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts",
+    "warehouse:build": "npm run warehouse:build -w @picc/api",
+    "sql:snowflake": "npm install --prefix tools/snowflake --no-audit --no-fund && tsx tools/snowflake/run.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
