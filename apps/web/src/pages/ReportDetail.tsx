@@ -11,11 +11,11 @@ import {
   Badge,
   Button,
   Card,
-  cx,
   Empty,
   Note,
   PageHeader,
   QueryBoundary,
+  ScrollArea,
   Stat,
   TableShell,
   td,
@@ -24,11 +24,14 @@ import {
 import { api } from '../lib/api';
 import { fmtAgo, fmtDateTime, fmtNum, fmtSec, fmtUsd, fmtUsd2, fmtUsdCompact } from '../lib/format';
 
-const REFRESH_CELL: Record<RefreshStatus, { color: string; glyph: string; label: string }> = {
-  SUCCESS: { color: 'bg-good', glyph: '', label: 'Success' },
-  FAILED: { color: 'bg-critical', glyph: '×', label: 'Failed' },
-  TIMED_OUT: { color: 'bg-serious', glyph: '!', label: 'Timed out' },
-  UNKNOWN: { color: 'bg-line-2', glyph: '?', label: 'Unknown' },
+const REFRESH_CELL: Record<
+  RefreshStatus,
+  { background: string; color: string; glyph: string; label: string }
+> = {
+  SUCCESS: { background: 'var(--good)', color: '#0b0b0b', glyph: '', label: 'Success' },
+  FAILED: { background: 'var(--critical)', color: '#ffffff', glyph: '×', label: 'Failed' },
+  TIMED_OUT: { background: 'var(--serious)', color: '#0b0b0b', glyph: '!', label: 'Timed out' },
+  UNKNOWN: { background: 'var(--line-2)', color: 'var(--ink)', glyph: '?', label: 'Unknown' },
 };
 
 const LATENCY_HINT = {
@@ -49,10 +52,8 @@ function RefreshStrip({ report }: { report: ReportDetail }) {
             <div
               key={h.periodSeq}
               title={`${h.periodLabel}: ${cell.label}`}
-              className={cx(
-                'flex h-7 flex-1 items-center justify-center rounded-[5px] text-[12px] font-bold text-white',
-                cell.color,
-              )}
+              className="flex h-7 flex-1 items-center justify-center rounded-[5px] text-[12px] font-bold"
+              style={{ background: cell.background, color: cell.color }}
             >
               {cell.glyph}
             </div>
@@ -67,10 +68,12 @@ function RefreshStrip({ report }: { report: ReportDetail }) {
         {(Object.keys(REFRESH_CELL) as RefreshStatus[]).map((status) => (
           <li key={status} className="inline-flex items-center gap-1.5">
             <span
-              className={cx(
-                'flex h-3.5 w-3.5 items-center justify-center rounded-[3px] text-[9px] font-bold text-white',
-                REFRESH_CELL[status].color,
-              )}
+              aria-hidden="true"
+              className="flex h-3.5 w-3.5 items-center justify-center rounded-[3px] text-[9px] font-bold"
+              style={{
+                background: REFRESH_CELL[status].background,
+                color: REFRESH_CELL[status].color,
+              }}
             >
               {REFRESH_CELL[status].glyph}
             </span>
@@ -115,27 +118,29 @@ function OwnershipTrail({ report }: { report: ReportDetail }) {
           owner · {report.ownership.periodsOrphaned} of {report.ownership.history.length} periods
         </span>
       </div>
-      <ol className="mt-3 max-h-56 space-y-1.5 overflow-y-auto text-[13px]">
-        {report.ownership.assignments.map((a) => (
-          <li key={`a-${a.id}`} className="flex gap-3">
-            <span className="w-10 shrink-0 text-[12px] font-medium text-accent-ink">now</span>
-            <span className="text-ink">
-              Assigned to <span className="font-medium">{a.ownerEmail}</span> by {a.assignedBy}
-              <span className="text-ink-3"> · {fmtDateTime(a.assignedAt)}</span>
-              {a.note && <span className="block text-ink-2">“{a.note}”</span>}
-            </span>
-          </li>
-        ))}
-        {[...changes].reverse().map((h) => (
-          <li key={h.periodSeq} className="flex gap-3">
-            <span className="tnum w-10 shrink-0 text-[12px] text-ink-3">{h.periodLabel}</span>
-            <span className="text-ink-2">
-              {label[h.changeType] ?? h.changeType}{' '}
-              {h.ownerEmail && <span className="font-medium text-ink">{h.ownerEmail}</span>}
-            </span>
-          </li>
-        ))}
-      </ol>
+      <ScrollArea label="Ownership changes" className="mt-3 max-h-56 overflow-y-auto">
+        <ol className="space-y-1.5 text-[13px]">
+          {report.ownership.assignments.map((a) => (
+            <li key={`a-${a.id}`} className="flex gap-3">
+              <span className="w-10 shrink-0 text-[12px] font-medium text-accent-ink">now</span>
+              <span className="text-ink">
+                Assigned to <span className="font-medium">{a.ownerEmail}</span> by {a.assignedBy}
+                <span className="text-ink-3"> · {fmtDateTime(a.assignedAt)}</span>
+                {a.note && <span className="block text-ink-2">“{a.note}”</span>}
+              </span>
+            </li>
+          ))}
+          {[...changes].reverse().map((h) => (
+            <li key={h.periodSeq} className="flex gap-3">
+              <span className="tnum w-10 shrink-0 text-[12px] text-ink-3">{h.periodLabel}</span>
+              <span className="text-ink-2">
+                {label[h.changeType] ?? h.changeType}{' '}
+                {h.ownerEmail && <span className="font-medium text-ink">{h.ownerEmail}</span>}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </ScrollArea>
     </div>
   );
 }
@@ -156,7 +161,7 @@ function Detail({ report }: { report: ReportDetail }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label="Load time"
           value={fmtSec(report.loadTimeSec)}
@@ -206,7 +211,7 @@ function Detail({ report }: { report: ReportDetail }) {
         )}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <TrendChart
           title="Load time by period"
           subtitle="Average dashboard load, seconds"
@@ -241,10 +246,10 @@ function Detail({ report }: { report: ReportDetail }) {
         )}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <Card
           title="Refresh history"
-          subtitle="Outcome of the automated refresh in each of the 20 periods"
+          subtitle={`Outcome of the automated refresh in each of the ${report.history.length} periods`}
         >
           <RefreshStrip report={report} />
         </Card>

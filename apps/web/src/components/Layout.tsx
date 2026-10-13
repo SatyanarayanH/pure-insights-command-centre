@@ -243,8 +243,8 @@ export function Layout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-line bg-surface/90 px-6 backdrop-blur">
-          <nav className="flex gap-1 md:hidden" aria-label="Main">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-line bg-surface/90 px-3 backdrop-blur sm:gap-4 sm:px-6">
+          <nav className="flex min-w-0 gap-0.5 overflow-x-auto md:hidden" aria-label="Main">
             {NAV.filter((item) => can(item.permission)).map((item) => (
               <NavLink
                 key={item.to}
@@ -264,7 +264,7 @@ export function Layout() {
               ? 'Showing only the reports you own'
               : 'Showing all reports on the platform'}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
             <button
               type="button"
               onClick={toggleTheme}
@@ -273,7 +273,7 @@ export function Layout() {
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <div className="text-right leading-tight">
+            <div className="text-right leading-tight max-sm:hidden">
               <div className="text-[13px] font-medium text-ink">{user.name}</div>
               <div className="text-[12px] text-ink-2">{user.roleLabel}</div>
             </div>
@@ -288,7 +288,7 @@ export function Layout() {
             </button>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-6 py-6">
+        <main className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 px-3 py-5 sm:px-6 sm:py-6">
           <Outlet />
         </main>
       </div>

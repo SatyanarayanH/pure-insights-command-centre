@@ -84,7 +84,8 @@ SELECT
     qc.tag_report_id,
     qc.tag_component,
     qa.credits_attributed_compute,
-    (qa.credits_attributed_compute >= 0) AS is_credit_valid
+    -- NULL (no figure at all) and negative are both unusable; the flag itself is never NULL.
+    COALESCE(qa.credits_attributed_compute >= 0, FALSE) AS is_credit_valid
 FROM ACCOUNT_USAGE.QUERY_ATTRIBUTION_HISTORY qa
 JOIN STG.QUERY_CLASSIFIED qc ON qc.query_id = qa.query_id;
 

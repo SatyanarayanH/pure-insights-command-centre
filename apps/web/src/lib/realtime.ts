@@ -42,6 +42,8 @@ export class RealtimeClient {
   private attempt = 0;
   private wsFailures = 0;
   private stopped = true;
+  /** Which run of the server's event stream `lastEventId` belongs to. */
+  private streamId: string | null = null;
   private readonly topics: Set<Topic>;
   private state: RealtimeState = {
     status: 'idle',
@@ -136,7 +138,10 @@ export class RealtimeClient {
       ticket: ticket.ticket,
       topics: [...this.topics].join(','),
     });
-    if (this.state.lastEventId > 0) params.set('lastEventId', String(this.state.lastEventId));
+    if (this.state.lastEventId > 0 && this.streamId) {
+      params.set('lastEventId', String(this.state.lastEventId));
+      params.set('streamId', this.streamId);
+    }
 
     if (this.wsFailures >= WS_FAILURES_BEFORE_FALLBACK) this.connectSse(ticket.ssePath, params);
     else this.connectWebSocket(ticket.wsPath, params);
@@ -206,6 +211,14 @@ export class RealtimeClient {
   }
 
   private dispatch(event: AnyServerEvent): void {
+    if (event.type === 'connection.ready') {
+      // After a server restart the ids begin again from 1. Comparing them with an id from the
+      // previous stream would make this client discard every new event as "already seen".
+      if (event.data.streamId !== this.streamId || event.data.resumedFrom === null) {
+        this.state = { ...this.state, lastEventId: 0 };
+      }
+      this.streamId = event.data.streamId;
+    }
     if (event.id > 0) {
       if (event.id <= this.state.lastEventId) return; // duplicate after a resume
       this.state = { ...this.state, lastEventId: event.id };

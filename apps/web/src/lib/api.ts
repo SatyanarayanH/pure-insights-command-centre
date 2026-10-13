@@ -24,6 +24,8 @@ export class ApiError extends Error {
 let accessToken: string | null = null;
 let refreshing: Promise<AuthResponse | null> | null = null;
 let onSessionLost: (() => void) | null = null;
+let onSessionReplaced: ((session: AuthResponse) => void) | null = null;
+let currentUserId: string | null = null;
 
 export const setAccessToken = (token: string | null): void => {
   accessToken = token;
@@ -31,13 +33,34 @@ export const setAccessToken = (token: string | null): void => {
 export const setSessionLostHandler = (handler: (() => void) | null): void => {
   onSessionLost = handler;
 };
+/** Called when a refresh comes back as a different user: another window signed in as someone
+ *  else, and the shared cookie now belongs to them. */
+export const setSessionReplacedHandler = (
+  handler: ((session: AuthResponse) => void) | null,
+): void => {
+  onSessionReplaced = handler;
+};
+export const setCurrentUserId = (id: string | null): void => {
+  currentUserId = id;
+};
 
 async function parse<T>(res: Response): Promise<T> {
   const text = await res.text();
-  const body = text ? (JSON.parse(text) as unknown) : null;
+  let body: unknown = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    // A proxy or gateway answered instead of the API (for example while the API is starting).
+    throw new ApiError(res.status, null);
+  }
   if (!res.ok) throw new ApiError(res.status, body as Problem | null);
   return body as T;
 }
+
+/** True when the server has told this browser that a session may exist. Lets a first-time
+ *  visitor skip a refresh call that could only come back 401. */
+export const mayHaveSession = (): boolean =>
+  document.cookie.split('; ').includes('picc_signed_in=1');
 
 /** One refresh at a time, however many requests hit a 401 together. */
 export function refreshSession(): Promise<AuthResponse | null> {
@@ -46,6 +69,7 @@ export function refreshSession(): Promise<AuthResponse | null> {
       if (!res.ok) return null;
       const session = (await res.json()) as AuthResponse;
       accessToken = session.accessToken;
+      if (currentUserId !== null && session.user.id !== currentUserId) onSessionReplaced?.(session);
       return session;
     })
     .catch(() => null)

@@ -42,7 +42,7 @@ test.describe('role-based access in the browser', () => {
     await expect(page.getByText(/Total cost/)).toHaveCount(0);
     await page.goto('/reports');
     await expect(page.getByRole('columnheader', { name: /Cost/ })).toHaveCount(0);
-    await expect(page.getByText(/u\*+\d@company\.com/).first()).toBeVisible();
+    await expect(page.getByText('u***@company.com').first()).toBeVisible();
     await expect(page.getByText(/user_\d+@company\.com/)).toHaveCount(0);
     // Typing the URL does not get around it: the page is refused, and so is the API behind it.
     await page.goto('/costs');

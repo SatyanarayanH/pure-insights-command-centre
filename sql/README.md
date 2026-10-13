@@ -27,7 +27,7 @@ To run the same files on a real Snowflake account, see [Running on Snowflake](#r
 | `04_unit_economics.sql` | `MART.FCT_REPORT_PERIOD`, `MART.OWNERSHIP_HISTORY`, `MART.DIM_REPORT`, `MART.PERIOD_SUMMARY` | Unit cost per active view and the marts the application reads. |
 | `05_chargeback.sql` | `MART.CHARGEBACK_OWNER_PERIOD`, `MART.CHARGEBACK_OWNER`, `MART.ORPHAN_QUEUE` | Cost by owner, with unowned spend as its own line. |
 | `06_cost_anomalies.sql` | `MART.USAGE_COST_CORRELATION`, `MART.REPORT_EFFICIENCY`, `MART.COST_ANOMALIES` | Where cost and usage disagree, with a dollar figure. |
-| `07_reconciliation_tests.sql` | `DQ.RECONCILIATION` | Sixteen checks. The runner fails if any is not `PASS`. |
+| `07_reconciliation_tests.sql` | `DQ.RECONCILIATION` | Sixteen checks. The runner fails if any is `FAIL`. |
 
 ## What the dataset is, and is not
 
@@ -99,7 +99,7 @@ The first is the brief's metric on Snowflake's own attribution. The second is wh
 | DQ-07 named owner changed since last period | 1,371 | no | Flagged |
 | DQ-08 zero views with cost | 4 | no | Unit cost set to NULL |
 | DQ-09 peak concurrency above monthly views | 93 | no | Flagged |
-| DQ-10, DQ-12 type and email format | 0 | no | Schema guards |
+| DQ-10, DQ-12, DQ-13 unparseable number, malformed email, blank value | 0 | no | Schema guards: none fire on this file, all fire on the dirtier test files |
 
 ## Reconciliation
 
@@ -117,6 +117,19 @@ The first is the brief's metric on Snowflake's own attribution. The second is wh
 | R14 | Chargeback lines sum to the fact table. |
 
 The application runs this suite at start-up and will not serve data if a check fails.
+
+One check is advisory. R03 (every report present in every period) describes the shape of the input, not the correctness of the model, so when it does not hold it reports `WARN` rather than `FAIL`: an incomplete panel is something to know about, not a reason to show nothing.
+
+## Tested against files it was not written for
+
+`apps/api/test/data-variants.test.ts` runs the whole suite on files other than the one provided:
+
+- **A dirtier file.** Blank owners, `NaN`, padded and mixed-case addresses, lowercase and blank statuses, non-numeric and blank credits, blank measurements. Every reconciliation check still passes, blank and non-numeric credits are quarantined and costed by Method C, and no flag column is ever NULL.
+- **A flat file.** 120 distinct reports, one period.
+- **A single row.**
+- **An incomplete panel.** One report missing its last period: R03 warns, everything else passes.
+
+The suite is also run twice on the same database to confirm it is idempotent.
 
 ## Portability
 

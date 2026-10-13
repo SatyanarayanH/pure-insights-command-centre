@@ -18,11 +18,11 @@ Open **Alerts**.
 - Three quarters of observations exceed 15 seconds. One alert per report per rule, with a count, instead of one per observation.
 - Point at severity tiers, **Escalated to admins** (the report has no owner to tell) and **Flapping**.
 
-Now the live part. Open a second browser window (or a private window), sign in as **Viewer**, and put the two side by side.
+Now the live part. Open a **private window** (or a different browser), sign in as **Viewer**, and put the two side by side. Two ordinary windows of the same browser share one session, so the second sign-in would replace the first.
 
 - In the admin window open **Reports → Analytics Dashboard 41** (`RPT_240`) and click **Recovery** twice, then **Latency spike**.
 - The viewer window shows the alert within a second, without reloading.
-- In the viewer window, owner emails are masked and there is no cost anywhere.
+- In the viewer window, every owner email reads `u***@company.com` and there is no cost anywhere.
 
 Sign the second window in as **Report Owner → user_7@company.com** instead. Inject a spike on a report that is not theirs: nothing arrives. Inject one on `RPT_230`: it does.
 
@@ -47,4 +47,4 @@ Open **Cost**.
 
 - `http://localhost:4000/docs`: the API explorer, generated from the code.
 - **Admin → Access**: the permission matrix, read from the same table the server enforces.
-- `npm test`: 118 tests in about 15 seconds, including every route against every role.
+- `npm test`: 150 tests in about 20 seconds, including every route against every role.

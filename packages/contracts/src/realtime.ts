@@ -31,8 +31,15 @@ const ConnectionReadyData = z.object({
   user: z.object({ email: z.string(), role: z.string(), scope: z.enum(['all', 'own']) }),
   topics: z.array(TopicSchema),
   heartbeatIntervalMs: z.number().int(),
+  streamId: z.string().meta({
+    description:
+      'Identifies this run of the event stream. Event ids are only comparable within one stream; send it back with `lastEventId` when reconnecting.',
+  }),
   latestEventId: z.number().int(),
-  resumedFrom: z.number().int().nullable(),
+  resumedFrom: z.number().int().nullable().meta({
+    description:
+      'The id replay started after, or null if nothing was resumed (first connection, or a different stream).',
+  }),
   replayed: z
     .number()
     .int()
@@ -142,7 +149,7 @@ export const SERVER_EVENT_DEFINITIONS = {
     topic: null,
     summary: 'Resume was not possible',
     description:
-      'The client asked to resume from an event id that has left the buffer. It must refetch state over REST; live events continue from here.',
+      'The client asked to resume from an event id that has left the buffer, or that belongs to a stream from before a server restart. It must refetch state over REST; live events continue from here.',
   },
   subscribed: {
     data: SubscribedData,
@@ -230,5 +237,6 @@ export const WS_CLOSE_CODES = {
   UNAUTHORIZED: { code: 4401, reason: 'Missing, expired or already-used ticket' },
   HEARTBEAT_TIMEOUT: { code: 4408, reason: 'No heartbeat received' },
   SLOW_CONSUMER: { code: 4429, reason: 'Client is not reading fast enough' },
+  RATE_LIMITED: { code: 4430, reason: 'Too many client messages' },
   SERVER_SHUTDOWN: { code: 1001, reason: 'Server is shutting down' },
 } as const;

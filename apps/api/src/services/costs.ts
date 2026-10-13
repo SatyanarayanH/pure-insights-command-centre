@@ -42,7 +42,8 @@ export class CostService {
   }
 
   private get latestSeq(): number {
-    return this.snapshot.dim[0]?.latest_period_seq ?? 0;
+    // The newest period in the file, not any one report's: reports can start or stop mid-way.
+    return Math.max(0, ...this.snapshot.periodSummary.map((p) => p.period_seq));
   }
 
   summary(principal: Principal): CostSummary {

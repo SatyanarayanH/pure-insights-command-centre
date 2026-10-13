@@ -3,7 +3,7 @@
   "info": {
     "title": "Pure Insights Command Centre real-time protocol",
     "version": "1.0.0+protocol.1",
-    "description": "Operational events pushed to browsers: alert lifecycle, ownership changes and raw telemetry.\n\nTwo transports carry the same events in the same envelope `{ v, id, type, ts, data }`:\n- **WebSocket** at `/ws`: bidirectional; the client can ping and change its topic subscriptions.\n- **Server-Sent Events** at `/api/v1/stream`: server-to-client only; for networks or proxies that block WebSocket.\n\n**Authentication.** Browsers cannot set an Authorization header on either transport, so the client first calls\n`POST /api/v1/realtime/ticket` with its bearer token and opens the stream with `?ticket=`. A ticket works once and expires in 30 seconds.\n\n**Authorisation.** Applied per event at delivery: a Report Owner only receives events for reports they own, and callers without `pii:read` receive masked email addresses. The rules are the same functions the REST API uses.\n\n**Delivery.** At-least-once within the replay buffer. Each topic event has a monotonically increasing `id`; reconnect with `lastEventId` to receive what was missed. If the gap has left the buffer the server sends `replay.gap` and the client refetches state over REST. Handlers should be idempotent on `id`.\n\n**Liveness.** The server sends a protocol-level ping every heartbeat interval and closes connections that do not answer. Clients may also send an application `ping` to measure round-trip time.\n\n**Close codes.** `4401` Missing, expired or already-used ticket · `4408` No heartbeat received · `4429` Client is not reading fast enough · `1001` Server is shutting down."
+    "description": "Operational events pushed to browsers: alert lifecycle, ownership changes and raw telemetry.\n\nTwo transports carry the same events in the same envelope `{ v, id, type, ts, data }`:\n- **WebSocket** at `/ws`: bidirectional; the client can ping and change its topic subscriptions.\n- **Server-Sent Events** at `/api/v1/stream`: server-to-client only; for networks or proxies that block WebSocket.\n\n**Authentication.** Browsers cannot set an Authorization header on either transport, so the client first calls\n`POST /api/v1/realtime/ticket` with its bearer token and opens the stream with `?ticket=`. A ticket works once and expires in 30 seconds.\n\n**Authorisation.** Applied per event at delivery: a Report Owner only receives events for reports they own, and callers without `pii:read` receive masked email addresses. The rules are the same functions the REST API uses.\n\n**Delivery.** At-least-once within the replay buffer. Each topic event has a monotonically increasing `id`; reconnect with `lastEventId` to receive what was missed. If the gap has left the buffer the server sends `replay.gap` and the client refetches state over REST. Handlers should be idempotent on `id`.\n\n**Liveness.** The server sends a protocol-level ping every heartbeat interval and closes connections that do not answer. Clients may also send an application `ping` to measure round-trip time.\n\n**Close codes.** `4401` Missing, expired or already-used ticket · `4408` No heartbeat received · `4429` Client is not reading fast enough · `4430` Too many client messages · `1001` Server is shutting down."
   },
   "defaultContentType": "application/json",
   "servers": {
@@ -319,10 +319,15 @@
                 "heartbeatIntervalMs": {
                   "type": "integer"
                 },
+                "streamId": {
+                  "type": "string",
+                  "description": "Identifies this run of the event stream. Event ids are only comparable within one stream; send it back with `lastEventId` when reconnecting."
+                },
                 "latestEventId": {
                   "type": "integer"
                 },
                 "resumedFrom": {
+                  "description": "The id replay started after, or null if nothing was resumed (first connection, or a different stream).",
                   "type": [
                     "integer",
                     "null"
@@ -339,6 +344,7 @@
                 "user",
                 "topics",
                 "heartbeatIntervalMs",
+                "streamId",
                 "latestEventId",
                 "resumedFrom",
                 "replayed"
@@ -738,7 +744,7 @@
         "name": "replay.gap",
         "title": "Resume was not possible",
         "summary": "Resume was not possible",
-        "description": "The client asked to resume from an event id that has left the buffer. It must refetch state over REST; live events continue from here.\n\nTopic: none (connection-scoped, id is 0, never replayed).",
+        "description": "The client asked to resume from an event id that has left the buffer, or that belongs to a stream from before a server restart. It must refetch state over REST; live events continue from here.\n\nTopic: none (connection-scoped, id is 0, never replayed).",
         "contentType": "application/json",
         "payload": {
           "type": "object",

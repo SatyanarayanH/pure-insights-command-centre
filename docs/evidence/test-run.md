@@ -1,6 +1,6 @@
 # Test run
 
-`npm test` on v23.11.0, 2026-10-13T16:01Z.
+`npm test` on v23.11.0, 2026-10-13T16:55Z.
 
 ```
 
@@ -24,6 +24,7 @@
   ✔ reopens the same alert when the breach returns soon after resolving
   ✔ opens a new alert when the report stayed healthy long enough
   ✔ marks an alert that keeps reopening as flapping
+  ✔ stops calling an alert flapping once it has fired steadily
   ✔ tracks rules independently on the same report
   ✔ escalates a refresh failure to critical on the third consecutive failure
   ✔ resolves a refresh failure on the first success
@@ -32,6 +33,9 @@
   ✔ applies changed thresholds to the next observation
   ✔ keeps an acknowledgement when further breaches arrive
 ✔ alert lifecycle
+▶ lifecycle invariants under random telemetry
+  ✔ holds after 6,000 random observations across 25 reports
+✔ lifecycle invariants under random telemetry
 ▶ authentication
   ✔ signs in with the demo password and returns role and permissions
   ✔ gives the same answer for a wrong password and an unknown account
@@ -74,6 +78,19 @@
   ✔ lists anomalies with a dollar figure
   ✔ exposes data-quality rules, findings traceable to a source line, and the quarantine
 ✔ cost and data quality
+▶ a dirtier file than the one provided
+  ✔ builds, and every reconciliation check that guards the arithmetic still passes
+  ✔ recognises every spelling of "no owner" and normalises a messy address
+  ✔ normalises status case and treats a blank status as unknown
+  ✔ quarantines credits that are not numbers or are missing, and still costs those rows
+  ✔ never produces a NULL where the application expects a yes or no
+  ✔ serves every page of the application from it
+✔ a dirtier file than the one provided
+▶ a file with a different shape
+  ✔ one period only: 120 distinct reports, each seen once
+  ✔ a single report in a single period
+  ✔ an incomplete panel: one report is missing its last period
+✔ a file with a different shape
 ▶ OpenAPI document
   ✔ has exactly one operation per mounted route, with its permission
   ✔ has no dangling references and documents every path parameter
@@ -86,11 +103,45 @@
 ▶ generated markdown
   ✔ keeps the committed API reference and data-quality report in step with the code
 ✔ generated markdown
+▶ hostile and malformed network input
+  ✔ survives upgrade requests whose target is not a parseable URL
+  ✔ disconnects a WebSocket client that floods the server with messages
+  ✔ does not believe X-Forwarded-For unless told there is a proxy
+  ✔ serves no inline-script allowance in its content security policy
+✔ hostile and malformed network input
+▶ resuming an event stream across a server restart
+  ✔ tells a client whose event id is from before the restart to start again
+  ✔ does not trust an old id just because it happens to be in range
+  ✔ still resumes normally within the same stream
+✔ resuming an event stream across a server restart
+▶ alert state that must not get stuck
+  ✔ ends a snooze when its time is up
+  ✔ closes the open alerts of a rule when the rule is disabled, and starts fresh when re-enabled
+  ✔ refuses a rule change that changes nothing
+✔ alert state that must not get stuck
+▶ telemetry timestamps
+  ✔ rejects a timestamp that is not a timestamp
+  ✔ rejects a timestamp in the future, allowing for clock skew
+  ✔ rejects an event older than what is already held, so stale data cannot overwrite current state
+  ✔ applies ordering within one batch as well
+✔ telemetry timestamps
+▶ sign-in
+  ✔ spends the same effort on an unknown account as on a wrong password
+  ✔ records failed sign-ins in the audit log
+  ✔ sets a script-readable hint cookie that carries no secret, and clears it on sign-out
+✔ sign-in
+▶ restarts and upgrades of the operational database
+  ✔ keeps alerts, acknowledgements and the audit trail across a restart, and does not replay history twice
+  ✔ upgrades a database written by an earlier build instead of failing on a missing column
+✔ restarts and upgrades of the operational database
+▶ SQL suite
+  ✔ is idempotent: running it twice on the same database gives the same answer
+✔ SQL suite
 ▶ role definitions
   ✔ gives the admin every permission and nobody else all of them
   ✔ keeps cost and unmasked email away from viewers, and writes away from finops
   ✔ scopes report owners to their own reports
-  ✔ masks email addresses but keeps them recognisable
+  ✔ masks email addresses so that different owners cannot be told apart
 ✔ role definitions
 ▶ access matrix: every route x every role
   ✔ rejects anonymous calls to every protected route with 401
@@ -108,6 +159,7 @@
 ▶ field-level security (Viewer)
   ✔ receives no cost block and no efficiency label on any report
   ✔ receives masked owner emails everywhere, never the real address
+  ✔ cannot use the owner filter to work out who owns what
   ✔ cannot sort its way to cost information
 ✔ field-level security (Viewer)
 ▶ machine identity (telemetry emitter)
@@ -180,12 +232,12 @@
   ✔ rejects alert thresholds that do not increase
   ✔ only admits known WebSocket client messages
 ✔ request schemas
-ℹ tests 118
-ℹ suites 28
-ℹ pass 118
+ℹ tests 150
+ℹ suites 38
+ℹ pass 150
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 9795.1895
+ℹ duration_ms 19261.209416
 ```

@@ -26,6 +26,7 @@ export interface PresenterContext {
   ownership: OwnershipService;
   reportName(reportId: string): string;
   rules(): readonly AlertRule[];
+  now(): Date;
 }
 
 export function presentEmail(principal: Principal, email: string | null): string | null {
@@ -70,7 +71,7 @@ export function presentAlert(
     unit: record.unit,
     occurrences: record.occurrences,
     reopenCount: record.reopenCount,
-    isFlapping: record.reopenCount >= FLAPPING_REOPEN_COUNT,
+    isFlapping: record.status !== 'resolved' && record.flapCount >= FLAPPING_REOPEN_COUNT,
     healthyStreak: record.status === 'resolved' ? 0 : record.okStreak,
     resolveAfter: ctx.rules().find((rule) => rule.id === record.ruleId)?.resolveAfter ?? 1,
     firstSeenAt: record.firstSeenAt,
@@ -79,7 +80,11 @@ export function presentAlert(
     acknowledgedBy: presentEmail(principal, record.acknowledgedBy),
     acknowledgedAt: record.acknowledgedAt,
     ackNote: record.ackNote,
-    snoozedUntil: record.snoozedUntil,
+    // A snooze that has run out is no longer a snooze.
+    snoozedUntil:
+      record.snoozedUntil && record.snoozedUntil > ctx.now().toISOString()
+        ? record.snoozedUntil
+        : null,
     routing: {
       kind: owner.email ? 'owner' : 'admins',
       ownerEmail: presentEmail(principal, owner.email),

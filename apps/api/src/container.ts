@@ -93,6 +93,7 @@ export function createContainer(
     ownership,
     reportName: (reportId) => names.get(reportId) ?? reportId,
     rules: () => ruleRepository.list(),
+    now,
   };
 
   const bus = new EventBus(2000, now);
@@ -113,7 +114,13 @@ export function createContainer(
   const costs = new CostService(snapshot, ownership);
   const dq = new DqService(snapshot);
   const orphans = new OrphanService(snapshot, ownership, users, state, alerts, audit, bus, now);
-  const simulator = new LiveSimulator(telemetry, snapshot.facts, config.simulatorIntervalMs, now);
+  const simulator = new LiveSimulator(
+    telemetry,
+    snapshot.facts,
+    config.simulatorIntervalMs,
+    now,
+    (error) => logger.error({ err: error }, 'telemetry simulator tick failed'),
+  );
   const gateway = new RealtimeGateway(bus, tickets, ctx, logger, {
     ...DEFAULT_GATEWAY_OPTIONS,
     allowedOrigins: config.corsOrigins,

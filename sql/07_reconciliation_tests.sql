@@ -2,8 +2,12 @@
 -- 07_reconciliation_tests.sql — the suite checks its own arithmetic
 --
 -- Each check writes one row to DQ.RECONCILIATION with an expected value, an actual
--- value and PASS / FAIL. The runners (DuckDB and Snowflake) read this table last
--- and exit non-zero if any row is FAIL, so a broken allocation cannot ship quietly.
+-- value and a status. The runners (DuckDB and Snowflake) read this table last and
+-- exit non-zero if any row is FAIL, so a broken allocation cannot ship quietly.
+--
+-- Most checks guard arithmetic and are blocking. A few describe the shape of the
+-- input rather than the correctness of the model; those report WARN instead of FAIL,
+-- because an incomplete panel is something to know about, not a reason to show nothing.
 --
 -- The guiding question for a cost model: can every credit on the bill be traced to
 -- exactly one line, and does nothing get counted twice or dropped?
@@ -28,7 +32,7 @@ WITH checks AS (
            0.0
 
     UNION ALL
-    -- R03  The panel is complete: every report is present in every period.
+    -- R03  The panel is complete: every report is present in every period. (Advisory.)
     SELECT 'R03',
            'Panel: rows = distinct reports x distinct periods',
            CAST((SELECT COUNT(DISTINCT report_id) * COUNT(DISTINCT period_seq) FROM STG.REPORT_TELEMETRY) AS DOUBLE),
@@ -166,6 +170,7 @@ SELECT
     CASE
         WHEN actual_value IS NULL OR expected_value IS NULL       THEN 'FAIL'
         WHEN ABS(actual_value - expected_value) <= tolerance      THEN 'PASS'
+        WHEN check_id IN ('R03')                                  THEN 'WARN'
         ELSE 'FAIL'
     END AS status
 FROM checks;

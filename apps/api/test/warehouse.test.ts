@@ -115,7 +115,7 @@ describe('ACCOUNT_USAGE simulator', () => {
     for (const input of readReportPeriods(rawCsv)) {
       const key = `${input.reportId}:${input.periodSeq}`;
       assert.ok(
-        Math.abs(totals.get(key)! - input.credits) < 1e-6,
+        Math.abs(totals.get(key)! - input.credits!) < 1e-6,
         `${key}: ${totals.get(key)} vs ${input.credits}`,
       );
       assert.equal(
@@ -163,6 +163,7 @@ describe('SQL suite on DuckDB', () => {
       'DQ-10': 0,
       'DQ-11': 564, // FAILED 382 + TIMED_OUT 182
       'DQ-12': 0,
+      'DQ-13': 0, // blank measurements: none in this file
     });
   });
 

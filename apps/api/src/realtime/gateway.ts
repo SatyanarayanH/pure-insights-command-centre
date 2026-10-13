@@ -46,7 +46,19 @@ interface WsConnection {
   topics: Set<Topic>;
   alive: boolean;
   openedAt: number;
+  windowStartedAt: number;
+  messagesInWindow: number;
 }
+
+/** Where a reconnecting client says it left off. */
+interface ResumePoint {
+  lastEventId: number | null;
+  streamId: string | null;
+}
+
+/** Client messages allowed per connection in each ten-second window. */
+const MAX_CLIENT_MESSAGES_PER_WINDOW = 60;
+const CLIENT_MESSAGE_WINDOW_MS = 10_000;
 
 interface SseConnection {
   id: string;
@@ -101,7 +113,15 @@ export class RealtimeGateway {
   }
 
   private onUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
-    const url = new URL(req.url ?? '/', 'http://localhost');
+    let url: URL;
+    try {
+      url = new URL(req.url ?? '/', 'http://localhost');
+    } catch {
+      // A request line such as `GET //` is not a parseable URL. This runs in an event handler,
+      // outside Express, so an exception here would take the whole process down.
+      socket.destroy();
+      return;
+    }
     if (url.pathname !== WS_PATH) {
       socket.destroy();
       return;
@@ -124,12 +144,10 @@ export class RealtimeGateway {
         ws.close(WS_CLOSE_CODES.UNAUTHORIZED.code, WS_CLOSE_CODES.UNAUTHORIZED.reason);
         return;
       }
-      this.onConnection(
-        ws,
-        principal,
-        parseTopics(url.searchParams.get('topics')),
-        parseEventId(url.searchParams.get('lastEventId')),
-      );
+      this.onConnection(ws, principal, parseTopics(url.searchParams.get('topics')), {
+        lastEventId: parseEventId(url.searchParams.get('lastEventId')),
+        streamId: url.searchParams.get('streamId'),
+      });
     });
   }
 
@@ -146,7 +164,7 @@ export class RealtimeGateway {
     socket: WebSocket,
     principal: Principal,
     topics: Set<Topic>,
-    lastEventId: number | null,
+    resume: ResumePoint,
   ): void {
     const connection: WsConnection = {
       id: randomUUID(),
@@ -155,15 +173,17 @@ export class RealtimeGateway {
       topics,
       alive: true,
       openedAt: Date.now(),
+      windowStartedAt: Date.now(),
+      messagesInWindow: 0,
     };
     this.ws.set(connection.id, connection);
     this.logger.debug(
-      { connectionId: connection.id, user: principal.email, lastEventId },
+      { connectionId: connection.id, user: principal.email, lastEventId: resume.lastEventId },
       'ws connected',
     );
 
     const send = (event: AnyServerEvent) => this.sendWs(connection, event);
-    this.handshake(connection.id, principal, topics, lastEventId, send);
+    this.handshake(connection.id, principal, topics, resume, send);
 
     socket.on('pong', () => {
       connection.alive = true;
@@ -177,6 +197,17 @@ export class RealtimeGateway {
 
   private onMessage(connection: WsConnection, raw: string): void {
     connection.alive = true;
+    // A client has no reason to send more than a ping and the odd subscription change.
+    const now = Date.now();
+    if (now - connection.windowStartedAt > CLIENT_MESSAGE_WINDOW_MS) {
+      connection.windowStartedAt = now;
+      connection.messagesInWindow = 0;
+    }
+    connection.messagesInWindow += 1;
+    if (connection.messagesInWindow > MAX_CLIENT_MESSAGES_PER_WINDOW) {
+      connection.socket.close(WS_CLOSE_CODES.RATE_LIMITED.code, WS_CLOSE_CODES.RATE_LIMITED.reason);
+      return;
+    }
     let json: unknown;
     try {
       json = JSON.parse(raw);
@@ -283,8 +314,12 @@ export class RealtimeGateway {
 
     const connection: SseConnection = { id: randomUUID(), res, principal, topics };
     this.sse.set(connection.id, connection);
-    this.handshake(connection.id, principal, topics, lastEventId, (event) =>
-      this.sendSse(connection, event),
+    this.handshake(
+      connection.id,
+      principal,
+      topics,
+      { lastEventId, streamId: typeof req.query.streamId === 'string' ? req.query.streamId : null },
+      (event) => this.sendSse(connection, event),
     );
     req.on('close', () => this.sse.delete(connection.id));
   };
@@ -313,10 +348,16 @@ export class RealtimeGateway {
     connectionId: string,
     principal: Principal,
     topics: Set<Topic>,
-    lastEventId: number | null,
+    resume: ResumePoint,
     send: (event: AnyServerEvent) => void,
   ): void {
-    const replay = lastEventId === null ? null : this.bus.replayAfter(lastEventId);
+    const { lastEventId } = resume;
+    // An id can only be resumed from within the stream that issued it. After a restart the
+    // ids begin again, so an old id is meaningless here even if it happens to be in range.
+    const sameStream = resume.streamId === null || resume.streamId === this.bus.streamId;
+    const resumable = lastEventId !== null && sameStream && lastEventId <= this.bus.latestId;
+    const replay = resumable ? this.bus.replayAfter(lastEventId) : null;
+    const gap = lastEventId !== null && (!resumable || replay?.gap === true);
     const missed = (replay?.records ?? [])
       .map((record) => renderForRecipient(record, principal, topics, this.ctx))
       .filter((event): event is AnyServerEvent => event !== null);
@@ -328,17 +369,20 @@ export class RealtimeGateway {
         user: { email: principal.email, role: principal.role, scope: principal.scope },
         topics: [...topics],
         heartbeatIntervalMs: this.options.heartbeatIntervalMs,
+        streamId: this.bus.streamId,
         latestEventId: this.bus.latestId,
-        resumedFrom: lastEventId,
+        resumedFrom: resumable ? lastEventId : null,
         replayed: missed.length,
       }),
     );
-    if (replay?.gap) {
+    if (gap) {
       send(
         this.local('replay.gap', {
           requestedFrom: lastEventId ?? 0,
-          oldestAvailable: replay.oldestAvailable,
-          message: 'Some events are no longer buffered. Refetch current state over REST.',
+          oldestAvailable: replay?.oldestAvailable ?? this.bus.latestId + 1,
+          message: resumable
+            ? 'Some events are no longer buffered. Refetch current state over REST.'
+            : 'The event stream restarted. Discard the old event id and refetch current state over REST.',
         }),
       );
     }

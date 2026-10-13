@@ -84,7 +84,8 @@ Design decisions that matter:
 
 - **Refresh tokens are stored only as a SHA-256 hash and rotate on every use.** Presenting a token that has already been rotated means two parties hold the same token; the server revokes the whole session family. A stolen cookie becomes a detectable event.
 - **Role is read from the database on every request, not from the token.** Demoting or deleting a user takes effect on their next request rather than when the token expires.
-- **Sign-in failures are indistinguishable.** A wrong password and an unknown account return the same status and message.
+- **Sign-in failures are indistinguishable.** A wrong password and an unknown account return the same status and message and take the same time: an unknown email is still checked against a real hash, so response time does not reveal which addresses have accounts. Failed attempts are written to the audit log, without the attempted password.
+- **A first visit makes no failing request.** Alongside the refresh cookie the server sets `picc_signed_in=1`, a script-readable flag with no secret in it. The client only attempts a session restore when that flag is present.
 - **State-changing requests authenticate with the bearer header, not the cookie.** The cookie is only ever sent to the auth path, so cross-site request forgery has nothing to ride on.
 - **Passwords** are hashed with scrypt (N=16384, r=8, p=1) and a per-user salt.
 
@@ -102,13 +103,14 @@ Access is decided on three levels. All three are defined once, in `packages/cont
 | --- | --- | --- |
 | Endpoint | May this role call this operation? | Each route declares one permission. Roles map to permissions; handlers never test role names. |
 | Row | Which reports may this user see? | Each role has a data scope. `all` sees every report; `own` sees only reports whose current owner is the user. |
-| Field | Which attributes may this user see? | Without `costs:read` the `cost` object is `null`. Without `pii:read` owner emails are masked (`u****7@company.com`). |
+| Field | Which attributes may this user see? | Without `costs:read` the `cost` object is `null`. Without `pii:read` owner emails are masked to `u***@company.com`. |
 
 Four roles ship: Platform Admin, FinOps Analyst, Report Owner and Viewer. The permission matrix and the endpoint-by-role access matrix are in Appendix A.
 
 Two properties are worth stating because they are easy to get wrong:
 
 - **Redaction is done on the server.** A viewer's response does not contain cost figures hidden by the interface; it does not contain them at all. Sorting by a cost column without `costs:read` silently falls back to sorting by report id, so ordering cannot leak the values either.
+- **Masking does not leak through shape or filters.** Only the first character and the domain survive, with a fixed number of stars: keeping the last character or the length would let a viewer tell `user_7` from `user_12`, which for fourteen owners is no masking at all. For the same reason the `owner` filter on `GET /reports` requires `pii:read`; without it a caller could confirm who owns what one guess at a time.
 - **The real-time stream is not a side door.** Every event is rendered separately for each connection through the same presenter the REST API uses. A Report Owner does not receive events about other people's reports on any topic, and a viewer receives masked emails.
 
 "Current owner" is the owner in the latest reporting period, unless an administrator has assigned one in the Command Centre, in which case the assignment wins.
@@ -164,7 +166,7 @@ The full list is in Appendix A. This section explains the resources whose behavi
 
 `POST /alerts/{alertId}/ack` marks an alert as taken. An acknowledged alert still resolves by itself when the condition clears, and still escalates if it gets worse. `POST /alerts/{alertId}/snooze` silences notifications for a number of minutes without changing the alert's state.
 
-`PUT /alert-rules/{ruleId}` changes thresholds. Tiers must increase (`warning < high < critical`) or the request is refused with 409. New thresholds apply from the next observation.
+`PUT /alert-rules/{ruleId}` changes thresholds. Tiers must increase (`warning < high < critical`) or the request is refused with 409, and a request that changes nothing is a 400. New thresholds apply from the next observation. Disabling a rule resolves the alerts it had open, with a timeline entry naming who disabled it: a rule that is no longer evaluated could never clear them itself.
 
 ### 5.4 Telemetry ingest
 
@@ -179,7 +181,9 @@ The full list is in Appendix A. This section explains the resources whose behavi
 }
 ```
 
-Each event needs a `reportId` and at least one of `loadTimeSec`, `refreshStatus`, `creditsConsumed`. `observedAt` defaults to the time of receipt.
+Each event needs a `reportId` and at least one of `loadTimeSec`, `refreshStatus`, `creditsConsumed`.
+
+`observedAt` is optional and defaults to the time of receipt. When supplied it must be ISO-8601 with a time zone, and the event is rejected if the timestamp is more than five minutes in the future or older than the newest observation already held for that report. A late event would otherwise overwrite the report's current state with a stale one.
 
 Events are validated one by one, so a malformed event does not reject the batch. The response is `202 Accepted`:
 
@@ -262,6 +266,7 @@ Query parameters:
 | `ticket` | yes | From `POST /api/v1/realtime/ticket`. |
 | `topics` | no | Comma-separated. Default `alerts,reports,system`. |
 | `lastEventId` | no | Resume point: replay every buffered event with a greater id. |
+| `streamId` | with `lastEventId` | The `streamId` from the `connection.ready` that issued that event id. |
 
 ### 7.3 Envelope
 
@@ -296,6 +301,7 @@ The first message on every connection is `connection.ready`:
     "user": { "email": "admin@company.com", "role": "admin", "scope": "all" },
     "topics": ["alerts", "reports", "system"],
     "heartbeatIntervalMs": 25000,
+    "streamId": "9f2c41d07a3e",
     "latestEventId": 121,
     "resumedFrom": 118,
     "replayed": 3
@@ -379,6 +385,7 @@ The complete catalogue with schemas is in Appendix A and `asyncapi.json`. An ale
 - **At-least-once.** After a resume, a client may see an event it already processed. Clients must ignore any `id` not greater than the last one they handled.
 - **Resume.** The server keeps the most recent 2,000 events. A client that reconnects with `lastEventId` receives everything after it, filtered by its topics and its access, before live events continue. `connection.ready.replayed` says how many are coming.
 - **Gap.** If the requested id has already left the buffer, the server sends `replay.gap` with `oldestAvailable`. The client must then refetch current state over REST. Live events continue normally.
+- **Restart.** Event ids start again from 1 when the server restarts, so an id is only meaningful within the stream that issued it. `connection.ready` carries a `streamId`; the client returns it with `lastEventId`. If it does not match the current stream, nothing is replayed, `resumedFrom` is null, and the server sends `replay.gap`. The client must then forget its old id. Without this, a client holding id 5000 from before a restart would discard every new event as already seen.
 - **Not guaranteed.** Events published while no buffer entry survives (a server restart) are lost to the stream; REST remains the source of truth, and a client should refetch after any reconnect that reports a gap.
 
 ### 7.8 Liveness, limits and close codes
@@ -390,6 +397,7 @@ The server sends a protocol-level ping every 25 seconds and closes a connection 
 | 4401 | Ticket missing, expired, reused, or the session is too old | Fetch a new ticket and reconnect. |
 | 4408 | No heartbeat answered | Reconnect with backoff. |
 | 4429 | Client is not reading fast enough | Reconnect; consider unsubscribing from `telemetry`. |
+| 4430 | More than 60 client messages in 10 seconds | Fix the client; a correct one sends a ping every 25 seconds. |
 | 1001 | Server is shutting down | Reconnect with backoff. |
 
 ### 7.9 Reference client algorithm
@@ -397,7 +405,7 @@ The server sends a protocol-level ping every 25 seconds and closes a connection 
 Implemented in `apps/web/src/lib/realtime.ts`.
 
 1. Request a ticket. Open the WebSocket with `topics` and, if known, `lastEventId`.
-2. On `connection.ready`, reset the retry counter and start sending `ping` every `heartbeatIntervalMs`.
+2. On `connection.ready`, reset the retry counter, remember `streamId`, and start sending `ping` every `heartbeatIntervalMs`. If `streamId` changed or `resumedFrom` is null, set the last handled id to 0.
 3. For each event with `id > 0`: if `id` is not greater than the last one handled, drop it; otherwise handle it and remember the id.
 4. On close, wait `min(30 s, 2^attempt s)` with jitter between half and all of that value, then go to step 1. Jitter matters: without it every browser reconnects in the same instant after a server restart.
 5. After three failures to establish a WebSocket, use SSE instead. Because the ticket in an EventSource URL is already spent, do not let EventSource reconnect on its own: close it and go to step 1.
@@ -430,7 +438,10 @@ Queries with no tag, a tag that is not JSON, or a `report_id` that is not in the
 | Health | `GET /healthz` (liveness) and `GET /readyz` (503 unless the warehouse reconciled). Both unauthenticated. |
 | Logging | Structured JSON, one line per request with request id, user, status and duration. Authorization headers, cookies, API keys, passwords and tokens are redacted at the logger. |
 | Audit | Every state-changing action writes who, what, target, detail and request id to an append-only table, readable at `GET /audit-log`. |
-| Security headers | Content-Security-Policy, HSTS, no-sniff and frame protections on every response. |
+| Security headers | Content-Security-Policy with no inline scripts, HSTS, no-sniff and frame protections on every response. |
+| Proxies | `X-Forwarded-For` is ignored unless `TRUST_PROXY` says how many proxies are in front; otherwise a caller could choose their own rate-limit key. |
+| Schema changes | The operational database carries a schema version and upgrades itself in place on start. |
+| Malformed input | A request line or frame the server cannot parse is dropped at the socket; it cannot raise an exception outside a handler. |
 | Shutdown | On SIGTERM the server stops the simulator, closes streams with code 1001, drains HTTP and closes the database. |
 | Scale-out | The event bus is the seam. Behind a load balancer, `publish` writes to a shared log (Redis Streams, or SNS with a queue per node) and each node delivers to its own connections; event ids become stream offsets. Tickets move to the shared store. Nothing else changes. |
 

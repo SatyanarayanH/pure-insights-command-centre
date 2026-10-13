@@ -81,7 +81,7 @@ export interface ReconciliationRow {
   actual_value: number | null;
   difference: number | null;
   tolerance: number;
-  status: 'PASS' | 'FAIL';
+  status: 'PASS' | 'WARN' | 'FAIL';
 }
 
 export interface SuiteResult {
@@ -149,7 +149,7 @@ export async function runSqlSuite(
   const reconciliation = await warehouse.query<ReconciliationRow & Record<string, unknown>>(
     'SELECT check_id, description, expected_value, actual_value, difference, tolerance, status FROM DQ.RECONCILIATION ORDER BY check_id',
   );
-  const failures = reconciliation.filter((row) => row.status !== 'PASS');
+  const failures = reconciliation.filter((row) => row.status === 'FAIL');
   if (failures.length > 0) throw new ReconciliationError(failures);
 
   return { files, reconciliation, durationMs: Math.round(performance.now() - started) };

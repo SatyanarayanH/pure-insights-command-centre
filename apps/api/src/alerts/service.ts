@@ -202,7 +202,7 @@ export class AlertService {
       stats.bySeverity[a.severity] += 1;
       stats.byRule[a.ruleId] = (stats.byRule[a.ruleId] ?? 0) + 1;
       if (this.ctx.ownership.isOrphaned(a.reportId)) stats.escalated += 1;
-      if (a.reopenCount >= FLAPPING_REOPEN_COUNT) stats.flapping += 1;
+      if (a.flapCount >= FLAPPING_REOPEN_COUNT) stats.flapping += 1;
     }
     return stats;
   }
@@ -260,6 +260,31 @@ export class AlertService {
       detail: { before, patch },
       requestId,
     });
+    // A disabled rule is never evaluated again, so nothing would ever clear the alerts it had
+    // open. Close them now, on the record, rather than leave them firing for ever.
+    if (before.enabled && !after.enabled) {
+      const at = this.now().toISOString();
+      const closed: EngineEvent[] = [];
+      for (const alert of this.alerts.list({ statuses: ['firing', 'acknowledged'], ruleId: id })) {
+        alert.status = 'resolved';
+        alert.resolvedAt = at;
+        alert.snoozedUntil = null;
+        // Far enough back that re-enabling the rule opens a fresh alert instead of reopening.
+        alert.obsSinceResolved = 1_000_000;
+        this.alerts.update(alert);
+        this.alerts.addEvent(
+          alert.id,
+          'resolved',
+          at,
+          principal.email,
+          alert.severity,
+          alert.value,
+          'Rule disabled',
+        );
+        closed.push({ type: 'resolved', alert });
+      }
+      this.publish(closed);
+    }
     this.bus.publish('system.notice', 'system', {
       level: 'info',
       code: 'alert_rule.updated',

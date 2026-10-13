@@ -5507,8 +5507,10 @@
             "type": "string",
             "enum": [
               "PASS",
+              "WARN",
               "FAIL"
-            ]
+            ],
+            "description": "WARN: an advisory check about the shape of the input did not hold. FAIL blocks start-up."
           }
         },
         "required": [

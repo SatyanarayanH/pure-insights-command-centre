@@ -35,6 +35,7 @@ Not mentioned in the brief. Each one would have produced a wrong number or a run
 | DQ-09 | `CONCURRENCY_EXCEEDS_VIEWS` | FLAG | 93 | 4.65% | 65 | concurrent_user_peak is greater than monthly_active_views, which is not physically possible. Usage counters disagree. |
 | DQ-10 | `TYPE_CAST_FAILURE` | QUARANTINE | 0 | 0% | 0 | A numeric column holds a value that does not cast to its type. |
 | DQ-12 | `INVALID_OWNER_EMAIL` | FLAG | 0 | 0% | 0 | owner_email is present but is not shaped like an email address. |
+| DQ-13 | `MISSING_VALUE` | FLAG | 0 | 0% | 0 | A measurement or the refresh status is blank. The row is kept; anything derived from the blank is NULL, and blank credits are quarantined from cost. |
 
 ## How each defect is handled
 

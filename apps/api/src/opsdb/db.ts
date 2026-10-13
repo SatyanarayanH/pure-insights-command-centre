@@ -124,6 +124,17 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 `;
 
+/** Append only. Never edit an entry that has shipped: add a new one. */
+const MIGRATIONS: readonly string[] = [
+  // 1: initial schema. IF NOT EXISTS, so databases created before versioning adopt it cleanly.
+  SCHEMA,
+  // 2: flap tracking that decays. `flap_count` is reopens since the alert last fired steadily;
+  //    `breach_streak` is consecutive breaching observations.
+  `ALTER TABLE alerts ADD COLUMN breach_streak INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE alerts ADD COLUMN flap_count INTEGER NOT NULL DEFAULT 0;
+   UPDATE alerts SET flap_count = reopen_count;`,
+];
+
 export type SqlValue = SQLInputValue;
 
 export class OpsDb {
@@ -137,7 +148,32 @@ export class OpsDb {
     this.db.exec(
       'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA synchronous = NORMAL;',
     );
-    this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  /**
+   * Brings the schema up to date. Each entry runs once, in order, and the database records how
+   * far it has got in `PRAGMA user_version`, so a file written by an older build is upgraded in
+   * place rather than breaking on a missing column.
+   */
+  private migrate(): void {
+    const current = (this.db.prepare('PRAGMA user_version').get() as { user_version: number })
+      .user_version;
+    for (let version = current; version < MIGRATIONS.length; version++) {
+      this.db.exec('BEGIN');
+      try {
+        this.db.exec(MIGRATIONS[version]!);
+        this.db.exec(`PRAGMA user_version = ${version + 1}`);
+        this.db.exec('COMMIT');
+      } catch (error) {
+        this.db.exec('ROLLBACK');
+        throw error;
+      }
+    }
+  }
+
+  get schemaVersion(): number {
+    return (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
   }
 
   private prepare(sql: string): StatementSync {

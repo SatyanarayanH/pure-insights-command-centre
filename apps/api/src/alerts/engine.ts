@@ -7,8 +7,11 @@ import type { AlertRecord, EngineEvent, Evaluation, Observation } from './types.
 /** A breach this many healthy observations after a resolve reopens the alert instead of
  *  opening a new one. Keeps a flapping report as one incident with a reopen count. */
 export const REOPEN_WITHIN_OBSERVATIONS = 3;
-/** Reopened at least this often = flapping. Clients stop toasting for it. */
+/** Reopened at least this often, recently = flapping. Clients stop toasting for it. */
 export const FLAPPING_REOPEN_COUNT = 2;
+/** This many breaches in a row and the alert is no longer flapping, just firing: the flap
+ *  count resets, so the label describes recent behaviour rather than ancient history. */
+export const STEADY_AFTER_BREACHES = 4;
 
 /**
  * Alert lifecycle.
@@ -60,6 +63,7 @@ export class AlertEngine {
 
     if (open) {
       open.okStreak += 1;
+      open.breachStreak = 0;
       if (open.okStreak >= rule.resolveAfter) return this.resolve(open, obs, ev);
       // Healthy, but not for long enough to clear. The alert stays open and says so, which is
       // why a report can show a good current reading next to an open alert.
@@ -92,6 +96,8 @@ export class AlertEngine {
       unit: ev.unit,
       occurrences: 1,
       reopenCount: 0,
+      flapCount: 0,
+      breachStreak: 1,
       okStreak: 0,
       obsSinceResolved: 0,
       firstSeenAt: obs.observedAt,
@@ -121,6 +127,8 @@ export class AlertEngine {
     const previous = alert.severity;
     alert.occurrences += 1;
     alert.okStreak = 0;
+    alert.breachStreak += 1;
+    if (alert.breachStreak >= STEADY_AFTER_BREACHES) alert.flapCount = 0;
     alert.lastSeenAt = obs.observedAt;
     alert.value = ev.value;
     alert.threshold = ev.threshold;
@@ -158,6 +166,8 @@ export class AlertEngine {
   private reopen(alert: AlertRecord, obs: Observation, ev: Evaluation): EngineEvent {
     alert.status = 'firing';
     alert.reopenCount += 1;
+    alert.flapCount += 1;
+    alert.breachStreak = 1;
     alert.occurrences += 1;
     alert.okStreak = 0;
     alert.obsSinceResolved = 0;

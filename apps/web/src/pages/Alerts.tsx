@@ -2,6 +2,7 @@ import type { Alert, AlertDetail, AlertRule, AlertStats } from '@picc/contracts'
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
+import { useAuth } from '../auth/AuthContext';
 import { AlertActions } from '../components/actions';
 import { AlertStatusBadge, SeverityBadge } from '../components/status';
 import {
@@ -16,6 +17,7 @@ import {
   PageHeader,
   Pager,
   QueryBoundary,
+  ScrollArea,
   Segmented,
   Select,
   Stat,
@@ -100,17 +102,19 @@ function AlertDrawer({ alertId, onClose }: { alertId: string; onClose: () => voi
             </dl>
             <div>
               <div className="mb-2 text-[13px] font-medium">Timeline</div>
-              <ol className="max-h-64 space-y-2 overflow-y-auto border-l border-line pl-4">
-                {[...alert.timeline].reverse().map((entry) => (
-                  <li key={entry.id} className="relative text-[13px]">
-                    <span className="absolute top-1.5 -left-[20.5px] h-2 w-2 rounded-full bg-line-2" />
-                    <span className="font-medium text-ink capitalize">{entry.type}</span>
-                    <span className="text-ink-2"> · {entry.actor}</span>
-                    <span className="text-ink-3"> · {fmtDateTime(entry.at)}</span>
-                    {entry.detail && <div className="text-ink-2">{entry.detail}</div>}
-                  </li>
-                ))}
-              </ol>
+              <ScrollArea label="Alert timeline" className="max-h-64 overflow-y-auto">
+                <ol className="space-y-2 border-l border-line pl-4">
+                  {[...alert.timeline].reverse().map((entry) => (
+                    <li key={entry.id} className="relative text-[13px]">
+                      <span className="absolute top-1.5 -left-[20.5px] h-2 w-2 rounded-full bg-line-2" />
+                      <span className="font-medium text-ink capitalize">{entry.type}</span>
+                      <span className="text-ink-2"> · {entry.actor}</span>
+                      <span className="text-ink-3"> · {fmtDateTime(entry.at)}</span>
+                      {entry.detail && <div className="text-ink-2">{entry.detail}</div>}
+                    </li>
+                  ))}
+                </ol>
+              </ScrollArea>
             </div>
             <div className="flex justify-end">
               <AlertActions alert={alert} />
@@ -123,11 +127,15 @@ function AlertDrawer({ alertId, onClose }: { alertId: string; onClose: () => voi
 }
 
 function Rules() {
+  const { can } = useAuth();
+  const allowed = can('alert-rules:read');
   const rules = useQuery({
     queryKey: ['alert-rules'],
     queryFn: () => api.get<{ items: AlertRule[] }>('/alert-rules'),
+    // Do not ask for something the role cannot have: it would only log a 403.
+    enabled: allowed,
   });
-  if (rules.isError) return null; // roles without alert-rules:read simply do not see this card
+  if (!allowed) return null;
   return (
     <Card
       title="Alert rules"
@@ -148,9 +156,16 @@ function Rules() {
             </thead>
             <tbody>
               {items.map((rule) => (
-                <tr key={rule.id} className={rule.enabled ? '' : 'opacity-50'}>
+                <tr key={rule.id}>
                   <td className={`${td} max-w-md`}>
-                    <div className="font-medium text-ink">{rule.name}</div>
+                    <div className="font-medium text-ink">
+                      {rule.name}
+                      {!rule.enabled && (
+                        <span className="ml-2">
+                          <Badge>Disabled</Badge>
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[12.5px] text-ink-2">{rule.description}</div>
                   </td>
                   <td className={td}>
@@ -225,7 +240,7 @@ export function AlertsPage() {
         description="One alert per rule per report. Repeat breaches raise the count on the existing alert instead of opening another, so the list is as long as the number of problems, not the number of observations."
       />
       <div className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat
             label="Open alerts"
             value={fmtNum(s ? s.firing + s.acknowledged : undefined)}
@@ -346,7 +361,7 @@ export function AlertsPage() {
                         </div>
                         <div className="font-mono text-[12px] text-ink-3">{alert.reportId}</div>
                       </td>
-                      <td className={`${td} max-w-[17rem]`}>
+                      <td className={`${td} max-w-[17rem] xl:max-w-[26rem]`}>
                         <div className="truncate" title={alert.message}>
                           {alert.message}
                         </div>
@@ -401,11 +416,11 @@ export function AlertsPage() {
         <Note>
           An alert describes an incident, not the latest reading. A latency alert stays open until
           two healthy readings arrive in a row, so a report can show a good load time on the Reports
-          page while its alert here is marked Recovering 1/2. In this dataset 82% of observations
-          break at least one rule. Alerting on each one, as a literal reading of the brief suggests,
-          would be noise. Every breach still produces an event on the stream; the engine groups
-          them, tiers severity at 15, 30 and 45 seconds, waits for consecutive healthy readings
-          before clearing, and mutes alerts that flap.
+          page while its alert here is marked Recovering 1/2. When most observations break a rule,
+          as they do in the case-study dataset, alerting on each one would be noise. Every breach
+          still produces an event on the stream; the engine groups them, tiers severity at 15, 30
+          and 45 seconds, waits for consecutive healthy readings before clearing, and mutes alerts
+          that flap.
         </Note>
         <Rules />
       </div>

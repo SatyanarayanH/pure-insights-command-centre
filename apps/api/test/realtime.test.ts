@@ -190,6 +190,7 @@ describe('WebSocket stream', () => {
     assert.deepEqual(ready.data.topics.sort(), ['alerts', 'reports', 'system']);
     assert.equal(ready.data.protocolVersion, 1);
     assert.equal(ready.data.resumedFrom, null);
+    assert.equal(ready.data.streamId, ctx.container.bus.streamId);
     serverEventSchema('connection.ready').parse(ready);
     client.close();
   });
@@ -340,7 +341,7 @@ describe('WebSocket stream', () => {
     );
     assert.equal(forAdmin.data.alert.routing.ownerEmail, report.owner_email);
     assert.notEqual(forViewer.data.alert.routing.ownerEmail, report.owner_email);
-    assert.match(forViewer.data.alert.routing.ownerEmail!, /^u\*+\d@company\.com$/);
+    assert.equal(forViewer.data.alert.routing.ownerEmail, 'u***@company.com');
     viewer.close();
     admin.close();
   });

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { ServerEventData, ServerEventType, Topic } from '@picc/contracts';
 
 /** An event as held on the bus: not yet tailored to any one recipient. */
@@ -35,6 +36,9 @@ export class EventBus {
   private readonly buffer: BusRecord[] = [];
   private readonly listeners = new Set<Listener>();
   private nextId = 1;
+  /** Changes whenever the process restarts and event ids start again from 1. A client that
+   *  resumes with an id from a previous stream must not have it compared with this one's. */
+  readonly streamId = randomBytes(6).toString('hex');
 
   constructor(
     private readonly capacity = 2000,

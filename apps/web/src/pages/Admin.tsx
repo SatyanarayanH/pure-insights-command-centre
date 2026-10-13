@@ -24,6 +24,7 @@ import {
   PageHeader,
   Pager,
   QueryBoundary,
+  ScrollArea,
   Segmented,
   Select,
   TableShell,
@@ -67,7 +68,7 @@ function LiveTab() {
 
   const valid = /^RPT_\d{1,6}$/.test(reportId);
   return (
-    <div className="grid gap-5 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
       <div className="space-y-5">
         <Card
           title="Inject an incident"
@@ -174,7 +175,7 @@ function LiveTab() {
         {telemetry.length === 0 ? (
           <Empty title="Waiting for telemetry" hint="Start the simulator or inject an incident." />
         ) : (
-          <div className="max-h-[640px] overflow-y-auto">
+          <ScrollArea label="Live telemetry" className="max-h-[640px] overflow-y-auto">
             <TableShell>
               <thead className="sticky top-0 bg-surface">
                 <tr>
@@ -211,7 +212,7 @@ function LiveTab() {
                 ))}
               </tbody>
             </TableShell>
-          </div>
+          </ScrollArea>
         )}
       </Card>
     </div>

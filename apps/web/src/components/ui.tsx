@@ -5,11 +5,54 @@ import {
   type ReactNode,
   type SelectHTMLAttributes,
   useEffect,
+  useRef,
+  useState,
 } from 'react';
 import { ApiError } from '../lib/api';
 
 export const cx = (...parts: (string | false | null | undefined)[]): string =>
   parts.filter(Boolean).join(' ');
+
+/**
+ * A region that may scroll. When its content actually overflows it becomes a keyboard stop with
+ * a name, so someone not using a mouse can reach what is below the fold; when it fits, it stays
+ * out of the tab order.
+ */
+export function ScrollArea({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const check = () =>
+      setScrollable(
+        element.scrollHeight > element.clientHeight + 1 ||
+          element.scrollWidth > element.clientWidth + 1,
+      );
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(element);
+    if (element.firstElementChild) observer.observe(element.firstElementChild);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className={className}
+      {...(scrollable ? { tabIndex: 0, role: 'region', 'aria-label': label } : {})}
+    >
+      {children}
+    </div>
+  );
+}
 
 export function Card({
   title,
@@ -28,7 +71,7 @@ export function Card({
   flush?: boolean;
 }) {
   return (
-    <section className={cx('rounded-xl border border-line bg-surface', className)}>
+    <section className={cx('min-w-0 rounded-xl border border-line bg-surface', className)}>
       {(title || actions) && (
         <header className="flex items-start justify-between gap-4 px-5 pt-4 pb-3">
           <div className="min-w-0">
@@ -69,7 +112,7 @@ export function Stat({
   tone?: Tone;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-surface px-5 py-4">
+    <div className="min-w-0 rounded-xl border border-line bg-surface px-5 py-4">
       <div className="flex items-center justify-between gap-2 text-[13px] text-ink-2">
         <span>{label}</span>
         {icon && <span className={TONE_TEXT[tone]}>{icon}</span>}
@@ -187,7 +230,7 @@ export function Segmented<T extends string>({
     <div
       role="tablist"
       aria-label={label}
-      className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5"
+      className="inline-flex max-w-full overflow-x-auto rounded-lg border border-line bg-surface-2 p-0.5"
     >
       {options.map((option) => (
         <button
@@ -197,7 +240,7 @@ export function Segmented<T extends string>({
           aria-selected={value === option.value}
           onClick={() => onChange(option.value)}
           className={cx(
-            'h-7 rounded-md px-3 text-[13px] font-medium transition-colors',
+            'h-7 shrink-0 rounded-md px-3 text-[13px] font-medium whitespace-nowrap transition-colors',
             value === option.value ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink',
           )}
         >
@@ -355,11 +398,11 @@ export const tdNum = `${td} tnum text-right`;
 
 export function TableShell({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <ScrollArea label="Table" className="relative overflow-x-auto">
       <table className="w-full border-collapse [&_tbody_tr]:border-t [&_tbody_tr]:border-line [&_thead_th]:first:pl-5 [&_tr_td]:first:pl-5 [&_tr_td]:last:pr-5 [&_tr_th]:last:pr-5">
         {children}
       </table>
-    </div>
+    </ScrollArea>
   );
 }
 

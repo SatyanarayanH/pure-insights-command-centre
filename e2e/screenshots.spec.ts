@@ -53,5 +53,11 @@ test.describe('screenshots', () => {
     await page.goto('/');
     await expect(page.getByText('Health over 20 periods')).toBeVisible();
     await shot('10-overview-dark', false);
+
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/alerts');
+    await expect(page.getByText('Alert rules')).toBeVisible();
+    await shot('11-alerts-phone', false);
   });
 });

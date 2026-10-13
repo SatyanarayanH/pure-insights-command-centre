@@ -45,6 +45,8 @@ export const OWNER = 'user_7@company.com';
 export async function createTestContext(
   env: Record<string, string> = {},
   overrides: ContainerOverrides = {},
+  /** A warehouse built from a different file. Defaults to the case-study dataset. */
+  customSnapshot?: WarehouseSnapshot,
 ): Promise<TestContext> {
   const config = loadConfig({
     NODE_ENV: 'test',
@@ -56,7 +58,7 @@ export async function createTestContext(
     ...env,
   });
   let now = Date.parse('2026-10-13T09:00:00.000Z');
-  const container = createContainer(config, await getSnapshot(), {
+  const container = createContainer(config, customSnapshot ?? (await getSnapshot()), {
     now: () => new Date(now),
     ...overrides,
   });

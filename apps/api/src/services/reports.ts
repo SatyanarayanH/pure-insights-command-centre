@@ -253,8 +253,9 @@ export class ReportService {
     const ids = new Set(rows.map((r) => r.report_id));
     const activeAlerts = this.alerts.activeByReport();
     const summaries = rows.map((row) => this.summarise(principal, row, activeAlerts));
-    const latest = this.snapshot.dim[0];
-    const latestSeq = latest?.latest_period_seq ?? 0;
+    // The newest period in the file, not any one report's: reports can start or stop mid-way.
+    const latest = this.snapshot.periodSummary.at(-1);
+    const latestSeq = latest?.period_seq ?? 0;
     const showCost = can(principal, 'costs:read');
     const latencyRule = this.alerts.listRules().find((rule) => rule.id === 'latency');
     const threshold = latencyRule?.warningThreshold ?? this.snapshot.params.latency_warning_sec;
@@ -294,8 +295,8 @@ export class ReportService {
       asOf: {
         periodSeq: latestSeq,
         periodLabel: periodLabel(latestSeq),
-        periodStart: latest?.latest_period_start ?? '',
-        periodEnd: latest?.latest_period_end ?? '',
+        periodStart: latest?.period_start ?? '',
+        periodEnd: latest?.period_end ?? '',
       },
       reports: {
         total: summaries.length,

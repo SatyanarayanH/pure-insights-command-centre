@@ -52,6 +52,12 @@ try {
     if (config.simulatorEnabled) container.simulator.start();
   });
 
+  // A bug in one request or one timer must be visible, and must not be the end of the process.
+  process.on('unhandledRejection', (reason) =>
+    logger.error({ err: reason }, 'unhandled promise rejection'),
+  );
+  process.on('uncaughtException', (error) => logger.error({ err: error }, 'uncaught exception'));
+
   let shuttingDown = false;
   const shutdown = (signal: string): void => {
     if (shuttingDown) return;

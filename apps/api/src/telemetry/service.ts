@@ -20,6 +20,8 @@ export interface IngestOptions {
 }
 
 const BACKFILL_KEY = 'telemetry.backfilled';
+/** How far ahead of the server clock an emitter's timestamp may be. */
+const MAX_CLOCK_SKEW_MS = 5 * 60_000;
 
 /**
  * The single path every observation takes, whoever sent it: the portal over HTTP, the
@@ -45,6 +47,8 @@ export class TelemetryService {
   ingestRaw(rawEvents: readonly unknown[], options: IngestOptions): TelemetryIngestResponse {
     const valid: TelemetryEvent[] = [];
     const rejected: TelemetryIngestResponse['rejected'] = [];
+    /** Newest explicit timestamp accepted so far in this batch, per report. */
+    const newest = new Map<string, string>();
     rawEvents.forEach((raw, index) => {
       const parsed = TelemetryEventSchema.safeParse(raw);
       if (!parsed.success) {
@@ -57,7 +61,16 @@ export class TelemetryService {
       } else if (!this.ownership.exists(parsed.data.reportId)) {
         rejected.push({ index, reason: `Unknown report ${parsed.data.reportId}` });
       } else {
-        valid.push(parsed.data);
+        const reason = this.timestampProblem(parsed.data, newest);
+        if (reason) rejected.push({ index, reason });
+        else {
+          if (parsed.data.observedAt) {
+            // Normalise to UTC so later comparisons are plain string comparisons.
+            parsed.data.observedAt = new Date(parsed.data.observedAt).toISOString();
+            newest.set(parsed.data.reportId, parsed.data.observedAt);
+          }
+          valid.push(parsed.data);
+        }
       }
     });
     const events = this.ingest(valid, options);
@@ -69,6 +82,28 @@ export class TelemetryService {
       ).length,
       alertsResolved: events.filter((e) => e.type === 'resolved').length,
     };
+  }
+
+  /**
+   * An emitter-supplied timestamp is refused when it cannot be right: in the future beyond
+   * clock skew, or older than what is already held for the report. Applying a late event would
+   * overwrite the report's current state with a stale one. Events without a timestamp are
+   * stamped on receipt and are always in order.
+   */
+  private timestampProblem(
+    event: TelemetryEvent,
+    newestInBatch: Map<string, string>,
+  ): string | null {
+    if (!event.observedAt) return null;
+    const observedAt = new Date(event.observedAt);
+    if (observedAt.getTime() > this.now().getTime() + MAX_CLOCK_SKEW_MS) {
+      return 'observedAt is in the future';
+    }
+    const held = newestInBatch.get(event.reportId) ?? this.state.get(event.reportId)?.observedAt;
+    if (held && observedAt.toISOString() < held) {
+      return `Out of order: older than the latest observation held for ${event.reportId} (${held})`;
+    }
+    return null;
   }
 
   ingest(events: readonly TelemetryEvent[], options: IngestOptions): EngineEvent[] {

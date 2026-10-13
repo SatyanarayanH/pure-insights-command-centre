@@ -5,11 +5,13 @@ import {
   AlertEngine,
   FLAPPING_REOPEN_COUNT,
   REOPEN_WITHIN_OBSERVATIONS,
+  STEADY_AFTER_BREACHES,
 } from '../src/alerts/engine.js';
 import { AlertRepository, AlertRuleRepository } from '../src/alerts/repository.js';
 import { evaluate } from '../src/alerts/rules.js';
 import type { EngineEvent, Observation } from '../src/alerts/types.js';
 import { OpsDb } from '../src/opsdb/db.js';
+import { createRng } from '../src/warehouse/prng.js';
 
 const REPORT = 'RPT_200';
 let db: OpsDb;
@@ -214,6 +216,26 @@ describe('alert lifecycle', () => {
       latency(22);
     }
     assert.equal(alerts.get(id)!.reopenCount, FLAPPING_REOPEN_COUNT);
+    assert.equal(alerts.get(id)!.flapCount, FLAPPING_REOPEN_COUNT);
+  });
+
+  it('stops calling an alert flapping once it has fired steadily', () => {
+    const id = only(latency(22)).alert.id;
+    for (let i = 0; i < FLAPPING_REOPEN_COUNT; i++) {
+      latency(5);
+      latency(5);
+      latency(22);
+    }
+    assert.equal(alerts.get(id)!.flapCount, FLAPPING_REOPEN_COUNT);
+    for (let i = 1; i < STEADY_AFTER_BREACHES; i++) latency(22);
+    const settled = alerts.get(id)!;
+    assert.equal(settled.flapCount, 0, 'firing without a break is not flapping');
+    assert.equal(
+      settled.reopenCount,
+      FLAPPING_REOPEN_COUNT,
+      'the lifetime count is kept for the record',
+    );
+    assert.equal(settled.status, 'firing');
   });
 
   it('tracks rules independently on the same report', () => {
@@ -272,5 +294,88 @@ describe('alert lifecycle', () => {
     const next = only(latency(24));
     assert.equal(next.alert.status, 'acknowledged');
     assert.equal(next.alert.acknowledgedBy, 'user_7@company.com');
+  });
+});
+
+describe('lifecycle invariants under random telemetry', () => {
+  it('holds after 6,000 random observations across 25 reports', () => {
+    const rng = createRng('engine-invariants');
+    const statuses: RefreshStatus[] = ['SUCCESS', 'SUCCESS', 'FAILED', 'TIMED_OUT', 'UNKNOWN'];
+    /** What a plain reading of the rules says should be open, tracked independently. */
+    const healthyRun = new Map<string, number>();
+    const expectOpen = new Map<string, boolean>();
+    const streaks = new Map<string, number>();
+
+    for (let i = 0; i < 6000; i++) {
+      const reportId = `RPT_${200 + rng.int(25)}`;
+      const loadTimeSec = Math.round(rng.uniform(0, 60) * 10) / 10;
+      const refreshStatus = statuses[rng.int(statuses.length)]!;
+      const failed = refreshStatus === 'FAILED' || refreshStatus === 'TIMED_OUT';
+      const streak = failed
+        ? (streaks.get(reportId) ?? 0) + 1
+        : refreshStatus === 'SUCCESS'
+          ? 0
+          : (streaks.get(reportId) ?? 0);
+      streaks.set(reportId, streak);
+      engine.process({
+        reportId,
+        observedAt: at(),
+        loadTimeSec,
+        refreshStatus,
+        refreshFailureStreak: streak,
+        source: 'live',
+      });
+
+      // Reference model for the latency rule: open on a breach, closed after two healthy in a row.
+      const key = `latency:${reportId}`;
+      if (loadTimeSec > 15) {
+        expectOpen.set(key, true);
+        healthyRun.set(key, 0);
+      } else if (expectOpen.get(key)) {
+        const run = (healthyRun.get(key) ?? 0) + 1;
+        healthyRun.set(key, run);
+        if (run >= 2) expectOpen.set(key, false);
+      }
+      // ...and for refresh failure: open while the last known outcome is a failure.
+      const refreshKey = `refresh_failure:${reportId}`;
+      if (failed) expectOpen.set(refreshKey, true);
+      else if (refreshStatus === 'SUCCESS') expectOpen.set(refreshKey, false);
+    }
+
+    const all = alerts.list({});
+    const open = all.filter((a) => a.status !== 'resolved');
+    const openByFingerprint = new Map<string, number>();
+    for (const alert of open)
+      openByFingerprint.set(alert.fingerprint, (openByFingerprint.get(alert.fingerprint) ?? 0) + 1);
+    assert.ok(
+      [...openByFingerprint.values()].every((n) => n === 1),
+      'never two open alerts for one rule and report',
+    );
+
+    for (const [key, shouldBeOpen] of expectOpen) {
+      assert.equal(
+        openByFingerprint.has(key),
+        shouldBeOpen,
+        `${key} should be ${shouldBeOpen ? 'open' : 'closed'}`,
+      );
+    }
+    for (const alert of all) {
+      assert.ok(alert.occurrences >= 1);
+      assert.ok(alert.firstSeenAt <= alert.lastSeenAt);
+      assert.equal(
+        alert.resolvedAt !== null,
+        alert.status === 'resolved',
+        'resolvedAt is set exactly when resolved',
+      );
+      assert.ok(alert.reopenCount >= alert.flapCount);
+      if (alert.status === 'resolved') assert.equal(alert.okStreak >= 0, true);
+      const timeline = alerts.timeline(alert.id).map((e) => e.type);
+      assert.equal(timeline[0], 'fired', 'every alert begins by firing');
+      assert.equal(timeline.filter((t) => t === 'reopened').length, alert.reopenCount);
+      assert.equal(
+        timeline.at(-1) === 'resolved',
+        alert.status === 'resolved' || timeline.at(-1) === 'resolved',
+      );
+    }
   });
 });

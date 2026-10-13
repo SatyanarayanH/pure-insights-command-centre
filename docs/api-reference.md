@@ -170,7 +170,7 @@ Envelope: `{ "v": 1, "id": <integer>, "type": "<event type>", "ts": "<ISO-8601>"
 | `telemetry.observed` | `telemetry` | Raw feed for live tickers. High volume; clients must opt in to the `telemetry` topic. |
 | `report.owner_changed` | `reports` | Clients should refetch report lists and the orphan queue. |
 | `system.notice` | `system` | For example: the telemetry simulator was paused or an alert rule was changed. |
-| `replay.gap` | — | The client asked to resume from an event id that has left the buffer. It must refetch state over REST; live events continue from here. |
+| `replay.gap` | — | The client asked to resume from an event id that has left the buffer, or that belongs to a stream from before a server restart. It must refetch state over REST; live events continue from here. |
 | `subscribed` | — | Reply to `subscribe` / `unsubscribe` with the resulting topic set. |
 | `pong` | — | Reply to a client `ping`. Echoes the client timestamp so the client can measure round-trip time. |
 | `error` | — | A client message was malformed or not allowed. The connection stays open unless the code is `unauthorized`. |
@@ -190,6 +190,7 @@ Envelope: `{ "v": 1, "id": <integer>, "type": "<event type>", "ts": "<ISO-8601>"
 | 4401 | Missing, expired or already-used ticket |
 | 4408 | No heartbeat received |
 | 4429 | Client is not reading fast enough |
+| 4430 | Too many client messages |
 | 1001 | Server is shutting down |
 
 ## Alert rules (defaults)

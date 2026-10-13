@@ -11,6 +11,7 @@ import {
   Note,
   PageHeader,
   QueryBoundary,
+  ScrollArea,
   Segmented,
   Stat,
   TableShell,
@@ -41,10 +42,10 @@ function Platform({ summary }: { summary: CostSummary }) {
   const residual =
     p.creditsMeteredCompute - p.creditsAttributedToReports - p.creditsIdle - p.creditsUnattributed;
   return (
-    <div className="grid gap-5 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
       <Card
         title="Where the metered credits went"
-        subtitle={`All 20 periods · ${fmtNum(p.creditsMeteredCompute)} compute credits billed`}
+        subtitle={`All ${summary.periods.length} periods · ${fmtNum(p.creditsMeteredCompute)} compute credits billed`}
       >
         <PartsBar
           format={(v) => fmtNum(v)}
@@ -181,8 +182,8 @@ function UnitEconomics() {
             group: r.efficiencyQuadrant === 'ZOMBIE' ? 'zombie' : 'other',
           }));
         return (
-          <div className="grid gap-5 xl:grid-cols-5">
-            <div className="xl:col-span-2">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
+            <div className="min-w-0 xl:col-span-2">
               <QuadrantScatter
                 title="Usage against cost"
                 subtitle="Each dot is a report, on its 3-period run-rate. Dashed lines are the medians."
@@ -221,7 +222,10 @@ function UnitEconomics() {
                 />
               }
             >
-              <div className="max-h-[388px] overflow-y-auto">
+              <ScrollArea
+                label="Unit economics by report"
+                className="max-h-[388px] overflow-y-auto"
+              >
                 <TableShell>
                   <thead className="sticky top-0 bg-surface">
                     <tr>
@@ -279,7 +283,7 @@ function UnitEconomics() {
                     ))}
                   </tbody>
                 </TableShell>
-              </div>
+              </ScrollArea>
             </Card>
           </div>
         );
@@ -296,7 +300,7 @@ function ChargebackCard() {
   return (
     <Card
       title="Chargeback by owner"
-      subtitle="Fully loaded cost over all 20 periods, by who owned the report at the time"
+      subtitle="Fully loaded cost over all periods, by who owned the report at the time"
     >
       <QueryBoundary query={chargeback}>
         {({ items }) => (
@@ -355,7 +359,7 @@ function Anomalies() {
                   </button>
                 ))}
               </div>
-              <div className="max-h-80 overflow-y-auto">
+              <ScrollArea label="Cost anomalies" className="max-h-80 overflow-y-auto">
                 <TableShell>
                   <thead className="sticky top-0 bg-surface">
                     <tr>
@@ -388,7 +392,7 @@ function Anomalies() {
                     ))}
                   </tbody>
                 </TableShell>
-              </div>
+              </ScrollArea>
             </>
           );
         }}
@@ -409,7 +413,7 @@ function Body({ summary }: { summary: CostSummary }) {
     latest.views > 0 ? (latest.creditsAttributed * summary.creditPriceUsd) / latest.views : null;
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label={`Total cost, ${latest.periodLabel}`}
           value={fmtUsd(latest.totalCostUsd)}
@@ -463,16 +467,16 @@ function Body({ summary }: { summary: CostSummary }) {
       <Platform summary={summary} />
       <UnitEconomics />
 
-      <div className="grid gap-5 xl:grid-cols-5">
-        <div className="xl:col-span-3">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
+        <div className="min-w-0 xl:col-span-3">
           <Anomalies />
         </div>
-        <div className="space-y-5 xl:col-span-2">
+        <div className="min-w-0 space-y-5 xl:col-span-2">
           {can('chargeback:read') && <ChargebackCard />}
           {summary.platform && (
             <Card
               title="Does cost follow usage?"
-              subtitle="Pearson correlation across all 2,000 report-periods"
+              subtitle={`Pearson correlation across ${fmtNum(summary.platform.correlations[0]?.observations ?? 0)} report-periods`}
               flush
             >
               <TableShell>

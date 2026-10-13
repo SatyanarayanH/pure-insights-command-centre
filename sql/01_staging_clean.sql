@@ -74,7 +74,8 @@ SELECT
 
     -- latency
     c.avg_load_time_sec,
-    (c.avg_load_time_sec > p.latency_warning_sec)                          AS is_latency_breach,
+    -- Flags are never NULL: a missing measurement is "not known to breach", and DQ-13 reports it.
+    COALESCE(c.avg_load_time_sec > p.latency_warning_sec, FALSE)           AS is_latency_breach,
     CASE
         WHEN c.avg_load_time_sec > p.latency_critical_sec THEN 'CRITICAL'
         WHEN c.avg_load_time_sec > p.latency_high_sec     THEN 'HIGH'
@@ -86,8 +87,8 @@ SELECT
     c.monthly_active_views,
     c.query_count_last_30d,
     c.concurrent_user_peak,
-    (c.monthly_active_views = 0)                                           AS is_zero_views,
-    (c.concurrent_user_peak > c.monthly_active_views)                      AS is_concurrency_gt_views,
+    COALESCE(c.monthly_active_views = 0, FALSE)                            AS is_zero_views,
+    COALESCE(c.concurrent_user_peak > c.monthly_active_views, FALSE)       AS is_concurrency_gt_views,
 
     -- cost
     c.credits_raw,
@@ -137,7 +138,9 @@ INSERT INTO DQ.RULES VALUES
     ('DQ-11', 'REFRESH_FAILED',            'Refresh',      'HIGH',   'FLAG',        TRUE,
      'last_refresh_status is FAILED or TIMED_OUT. Raises an operational alert.'),
     ('DQ-12', 'INVALID_OWNER_EMAIL',       'Schema',       'LOW',    'FLAG',        FALSE,
-     'owner_email is present but is not shaped like an email address.');
+     'owner_email is present but is not shaped like an email address.'),
+    ('DQ-13', 'MISSING_VALUE',             'Schema',       'MEDIUM', 'FLAG',        FALSE,
+     'A measurement or the refresh status is blank. The row is kept; anything derived from the blank is NULL, and blank credits are quarantined from cost.');
 
 -- -----------------------------------------------------------------------------
 -- DQ.FINDINGS — one row per (rule, source row) violation
@@ -191,6 +194,28 @@ cast_failures AS (
     SELECT row_seq, 'concurrent_user_peak', concurrent_user_peak
     FROM RAW.REPORT_TELEMETRY
     WHERE TRIM(concurrent_user_peak) <> '' AND TRY_CAST(concurrent_user_peak AS INTEGER) IS NULL
+),
+blanks AS (
+    SELECT row_seq, 'monthly_active_views' AS column_name FROM RAW.REPORT_TELEMETRY
+    WHERE COALESCE(TRIM(monthly_active_views), '') = ''
+    UNION ALL
+    SELECT row_seq, 'snowflake_credits_consumed' FROM RAW.REPORT_TELEMETRY
+    WHERE COALESCE(TRIM(snowflake_credits_consumed), '') = ''
+    UNION ALL
+    SELECT row_seq, 'avg_load_time_sec' FROM RAW.REPORT_TELEMETRY
+    WHERE COALESCE(TRIM(avg_load_time_sec), '') = ''
+    UNION ALL
+    SELECT row_seq, 'aws_hosting_cost_usd' FROM RAW.REPORT_TELEMETRY
+    WHERE COALESCE(TRIM(aws_hosting_cost_usd), '') = ''
+    UNION ALL
+    SELECT row_seq, 'query_count_last_30d' FROM RAW.REPORT_TELEMETRY
+    WHERE COALESCE(TRIM(query_count_last_30d), '') = ''
+    UNION ALL
+    SELECT row_seq, 'concurrent_user_peak' FROM RAW.REPORT_TELEMETRY
+    WHERE COALESCE(TRIM(concurrent_user_peak), '') = ''
+    UNION ALL
+    SELECT row_seq, 'last_refresh_status' FROM RAW.REPORT_TELEMETRY
+    WHERE COALESCE(TRIM(last_refresh_status), '') = ''
 )
 SELECT 'DQ-01' AS rule_id, s.row_seq, s.report_id, s.period_seq,
        s.owner_email_raw AS observed_value,
@@ -279,7 +304,14 @@ SELECT 'DQ-12', s.row_seq, s.report_id, s.period_seq,
        'owner present but not an email address'
 FROM STG.REPORT_TELEMETRY s
 WHERE NOT s.is_orphaned
-  AND s.owner_email NOT LIKE '%_@_%._%';
+  AND s.owner_email NOT LIKE '%_@_%._%'
+
+UNION ALL
+SELECT 'DQ-13', s.row_seq, s.report_id, s.period_seq,
+       CAST(NULL AS VARCHAR),
+       'blank: ' || b.column_name
+FROM STG.REPORT_TELEMETRY s
+JOIN blanks b ON b.row_seq = s.row_seq;
 
 -- -----------------------------------------------------------------------------
 -- DQ.QUARANTINE — report-periods excluded from cost attribution, with the reason.
@@ -290,8 +322,16 @@ SELECT
     s.row_seq,
     s.report_id,
     s.period_seq,
-    CASE WHEN s.credits_raw IS NULL THEN 'DQ-10' ELSE 'DQ-02' END  AS rule_id,
-    CASE WHEN s.credits_raw IS NULL THEN 'CREDITS_NOT_NUMERIC' ELSE 'NEGATIVE_CREDITS' END AS reason_code,
+    CASE
+        WHEN s.credits_raw IS NOT NULL                                 THEN 'DQ-02'
+        WHEN COALESCE(TRIM(r.snowflake_credits_consumed), '') = ''     THEN 'DQ-13'
+        ELSE 'DQ-10'
+    END AS rule_id,
+    CASE
+        WHEN s.credits_raw IS NOT NULL                                 THEN 'NEGATIVE_CREDITS'
+        WHEN COALESCE(TRIM(r.snowflake_credits_consumed), '') = ''     THEN 'CREDITS_MISSING'
+        ELSE 'CREDITS_NOT_NUMERIC'
+    END AS reason_code,
     r.snowflake_credits_consumed                                    AS raw_value,
     s.credits_raw
 FROM STG.REPORT_TELEMETRY s

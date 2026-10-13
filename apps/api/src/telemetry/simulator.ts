@@ -25,6 +25,7 @@ export class LiveSimulator {
     facts: readonly FactRow[],
     private intervalMs: number,
     private readonly now: () => Date = () => new Date(),
+    private readonly onError: (error: unknown) => void = () => undefined,
   ) {
     for (const fact of facts) {
       const list = this.history.get(fact.report_id) ?? [];
@@ -40,7 +41,14 @@ export class LiveSimulator {
 
   start(): void {
     if (this.timer || this.order.length === 0) return;
-    this.timer = setInterval(() => this.tick(), this.intervalMs);
+    this.timer = setInterval(() => {
+      // One failed tick is reported and skipped; it must not stop the stream or the process.
+      try {
+        this.tick();
+      } catch (error) {
+        this.onError(error);
+      }
+    }, this.intervalMs);
     this.timer.unref();
   }
 

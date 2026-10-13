@@ -1,5 +1,5 @@
 import type { Persona } from '@picc/contracts';
-import { Coins, Eye, ShieldCheck, UserCheck } from 'lucide-react';
+import { Coins, Eye, LoaderCircle, ShieldCheck, UserCheck } from 'lucide-react';
 import { type FormEvent, type ReactNode, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Button, inputClass, Select } from '../components/ui';
@@ -12,7 +12,7 @@ const ROLE_ICON: Record<Persona['role'], ReactNode> = {
 };
 
 export function LoginPage() {
-  const { login, demoLogin, config } = useAuth();
+  const { login, demoLogin, config, apiStarting } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -71,13 +71,29 @@ export function LoginPage() {
           </ul>
         </div>
         <div className="text-[12.5px] text-white/50">
-          Case Study 3 · Technical Data AI Validation · 100 reports, 20 periods
+          Case Study 3 · Technical Data AI Validation
         </div>
       </div>
 
       <div className="flex items-center justify-center px-6 py-10">
         <div className="w-full max-w-md">
           <h2 className="text-[22px] font-semibold tracking-tight">Sign in</h2>
+
+          {apiStarting && !config && (
+            <div
+              role="status"
+              className="mt-6 flex items-start gap-3 rounded-xl border border-line bg-surface px-4 py-3"
+            >
+              <LoaderCircle size={18} className="mt-0.5 animate-spin text-ink-2" />
+              <div>
+                <div className="text-[14px] font-medium text-ink">Starting up</div>
+                <div className="text-[13px] text-ink-2">
+                  On its first start the API simulates the query logs, runs the SQL suite and checks
+                  reconciliation. That takes about 15 seconds; this page continues by itself.
+                </div>
+              </div>
+            </div>
+          )}
 
           {config?.demoMode && personas.length > 0 && (
             <div className="mt-6">

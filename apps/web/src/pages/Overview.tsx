@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { BarsChart, SERIES_COLORS, TrendChart } from '../components/charts';
 import { SeverityBadge } from '../components/status';
-import { Card, Empty, PageHeader, QueryBoundary, Stat } from '../components/ui';
+import { Card, Empty, PageHeader, QueryBoundary, ScrollArea, Stat } from '../components/ui';
 import { api } from '../lib/api';
 import { fmtAgo, fmtDate, fmtNum, fmtSec, fmtUsd, fmtUsd2, fmtUsdCompact } from '../lib/format';
 import { type ActivityItem, useRealtime } from '../realtime/RealtimeProvider';
@@ -40,35 +40,39 @@ function LiveActivity() {
           hint="Alerts, recoveries and ownership changes appear here the moment they happen."
         />
       ) : (
-        <ul className="-mx-2 max-h-[340px] space-y-0.5 overflow-y-auto">
-          {activity.slice(0, 30).map((item) => (
-            <li key={item.key} className="flash rounded-lg px-2 py-1.5">
-              <div className="flex items-start gap-2.5">
-                <span
-                  className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${ACTIVITY_DOT[item.kind]}`}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    {item.reportId ? (
-                      <Link
-                        to={`/reports/${item.reportId}`}
-                        className="truncate text-[13.5px] font-medium text-ink hover:underline"
-                      >
-                        {item.title}
-                      </Link>
-                    ) : (
-                      <span className="truncate text-[13.5px] font-medium text-ink">
-                        {item.title}
+        <ScrollArea label="Live activity" className="-mx-2 max-h-[340px] overflow-y-auto">
+          <ul className="space-y-0.5">
+            {activity.slice(0, 30).map((item) => (
+              <li key={item.key} className="flash rounded-lg px-2 py-1.5">
+                <div className="flex items-start gap-2.5">
+                  <span
+                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${ACTIVITY_DOT[item.kind]}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      {item.reportId ? (
+                        <Link
+                          to={`/reports/${item.reportId}`}
+                          className="truncate text-[13.5px] font-medium text-ink hover:underline"
+                        >
+                          {item.title}
+                        </Link>
+                      ) : (
+                        <span className="truncate text-[13.5px] font-medium text-ink">
+                          {item.title}
+                        </span>
+                      )}
+                      <span className="tnum shrink-0 text-[12px] text-ink-3">
+                        {fmtAgo(item.at)}
                       </span>
-                    )}
-                    <span className="tnum shrink-0 text-[12px] text-ink-3">{fmtAgo(item.at)}</span>
+                    </div>
+                    <div className="truncate text-[12.5px] text-ink-2">{item.detail}</div>
                   </div>
-                  <div className="truncate text-[12.5px] text-ink-2">{item.detail}</div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </ScrollArea>
       )}
     </Card>
   );
@@ -82,7 +86,7 @@ function OverviewBody({ data }: { data: Overview }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label="Open alerts"
           value={fmtNum(data.alerts.firing + data.alerts.acknowledged)}
@@ -118,7 +122,7 @@ function OverviewBody({ data }: { data: Overview }) {
       </div>
 
       {data.cost && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat
             label={`Total cost, ${data.asOf.periodLabel}`}
             value={fmtUsd(data.cost.totalCostUsd)}
@@ -146,10 +150,10 @@ function OverviewBody({ data }: { data: Overview }) {
         </div>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <TrendChart
           className="xl:col-span-2"
-          title="Health over 20 periods"
+          title={`Health over ${trend.length} period${trend.length === 1 ? '' : 's'}`}
           subtitle="Reports affected in each period"
           data={trend}
           xKey="periodLabel"
@@ -178,7 +182,7 @@ function OverviewBody({ data }: { data: Overview }) {
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <Card
           title="Needs attention first"
           subtitle="Worst open alert per report; unowned reports rank higher"

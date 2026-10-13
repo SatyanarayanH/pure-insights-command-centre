@@ -199,15 +199,19 @@ export const UpdateAlertRuleRequestSchema = z
         r.criticalThreshold === undefined ||
         r.highThreshold < r.criticalThreshold),
     { message: 'Thresholds must increase: warning < high < critical.' },
-  );
+  )
+  .refine((r) => Object.values(r).some((value) => value !== undefined), {
+    message: 'Provide at least one field to change.',
+  });
 export type UpdateAlertRuleRequest = z.infer<typeof UpdateAlertRuleRequestSchema>;
 
 /** One observation of a report, as the portal would push it. */
 export const TelemetryEventSchema = z
   .object({
     reportId: ReportIdSchema,
-    observedAt: IsoDateTimeSchema.optional().meta({
-      description: 'Defaults to the time of receipt.',
+    observedAt: z.iso.datetime({ offset: true }).optional().meta({
+      description:
+        'ISO-8601 with a time zone. Defaults to the time of receipt. Rejected if more than five minutes in the future, or older than the newest observation already held for the report.',
     }),
     loadTimeSec: z
       .number()

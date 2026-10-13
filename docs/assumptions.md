@@ -47,3 +47,5 @@ The dataset has no query logs, so these are inventions. They affect Methods B an
 | Y2 | An owner assigned in the Command Centre overrides the portal's value. | The assignment is a deliberate, audited act; the portal's value demonstrably flickers. In production the assignment would be written back to the portal. |
 | Y3 | Chargeback follows who owned the report at the time; assignments do not rewrite history. | A new owner should not inherit last year's bill. |
 | Y4 | Viewers may see health but not cost or personal email addresses. | A reasonable least-privilege default; it is one table to change. |
+| Y5 | An emitter's timestamp is trusted only if it is not in the future and not older than what is already held. | A late or mis-clocked event must not overwrite current state. Events with no timestamp are stamped on receipt. |
+| Y6 | An alert stops being "flapping" after four breaching observations in a row. | At that point it is simply firing; the label should describe recent behaviour. |

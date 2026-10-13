@@ -27,7 +27,10 @@ export const ReconciliationCheckSchema = z
     actualValue: z.number().nullable(),
     difference: z.number().nullable(),
     tolerance: z.number(),
-    status: z.enum(['PASS', 'FAIL']),
+    status: z.enum(['PASS', 'WARN', 'FAIL']).meta({
+      description:
+        'WARN: an advisory check about the shape of the input did not hold. FAIL blocks start-up.',
+    }),
   })
   .meta({ id: 'ReconciliationCheck' });
 export type ReconciliationCheck = z.infer<typeof ReconciliationCheckSchema>;

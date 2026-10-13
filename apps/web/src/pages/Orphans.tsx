@@ -44,7 +44,7 @@ function Queue({ queue }: { queue: OrphanQueue }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat
           label="Reports with no owner"
           value={fmtNum(queue.total)}
@@ -70,7 +70,7 @@ function Queue({ queue }: { queue: OrphanQueue }) {
         The source marks a missing owner two ways: a stringified{' '}
         <code className="font-mono">nan</code> and the sentinel{' '}
         <code className="font-mono">ORPHANED_REPORT</code>. Both are treated as "no owner". The
-        suggested owner is the last person named as owner in the report's 20-period history.
+        suggested owner is the last person named as owner in the report's history.
       </Note>
 
       <Card title="Remediation queue" subtitle="Most expensive first" flush>

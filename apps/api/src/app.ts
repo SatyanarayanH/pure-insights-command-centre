@@ -29,7 +29,9 @@ export function createApp(c: Container): App {
   const { config, logger } = c;
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  // With no proxy in front, X-Forwarded-For is whatever the caller types, and believing it
+  // would let anyone reset their own rate limit. Trust is opt-in: TRUST_PROXY=1 behind an ALB.
+  app.set('trust proxy', config.trustProxy);
 
   // Request id first, so every log line and every error body can be correlated.
   const requestId: RequestHandler = (req, res, next) => {
@@ -46,8 +48,8 @@ export function createApp(c: Container): App {
         useDefaults: true,
         directives: {
           'connect-src': ["'self'", 'ws:', 'wss:'],
-          // Swagger UI ships inline styles and an inline bootstrap script.
-          'script-src': ["'self'", "'unsafe-inline'"],
+          // No inline scripts anywhere. Inline styles are needed by the charts and Swagger UI.
+          'script-src': ["'self'"],
           'style-src': ["'self'", "'unsafe-inline'"],
           'img-src': ["'self'", 'data:'],
           // Only meaningful behind TLS. Left on, it breaks plain-HTTP runs on localhost in
@@ -104,7 +106,7 @@ export function createApp(c: Container): App {
     res.json({ status: 'ok', service: SERVICE_NAME, version: SERVICE_VERSION });
   });
   app.get('/readyz', (_req, res) => {
-    const passed = c.snapshot.reconciliation.every((r) => r.status === 'PASS');
+    const passed = c.snapshot.reconciliation.every((r) => r.status !== 'FAIL');
     res.status(passed ? 200 : 503).json({
       status: passed ? 'ready' : 'degraded',
       warehouse: {

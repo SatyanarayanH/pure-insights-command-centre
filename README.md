@@ -32,9 +32,9 @@ Then open http://localhost:4000.
 | Platform Admin | Everything. Assigns owners, tunes alert rules, injects incidents, reads the audit log. |
 | FinOps Analyst | Every cost, chargeback and data-quality view. Changes nothing. |
 | Report Owner (`user_1` … `user_14@company.com`) | Only the reports they own, and those reports' alerts and cost. |
-| Viewer | Health only. No cost figures; owner emails are masked. |
+| Viewer | Health only. No cost figures; owner emails are masked so that owners cannot be told apart. |
 
-To see real-time alerting: open a second browser window as a different persona, then in the admin window open any report and click **Latency spike**. A five-minute guided tour is in [`docs/demo-script.md`](docs/demo-script.md).
+To see real-time alerting: open a **private window or a second browser** as a different persona (two normal windows of one browser share a session), then in the admin window open any report and click **Latency spike**. A five-minute guided tour is in [`docs/demo-script.md`](docs/demo-script.md).
 
 ## The three deliverables
 
@@ -86,7 +86,7 @@ The full list, with row counts and source line numbers, is generated from the pi
 
 ### Code quality and system docs
 
-- **118 tests** (`npm test`) and **8 browser scenarios** (`npm run test:e2e`). The access matrix is tested for every route against every role, derived from the route registry.
+- **150 tests** (`npm test`) and **22 browser tests** (`npm run test:e2e`). The access matrix is tested for every route against every role, derived from the route registry. How the system was attacked, and what that found, is in [`docs/testing.md`](docs/testing.md).
 - **The specification cannot drift**: OpenAPI, AsyncAPI, the API reference and the data-quality report are generated from the code, and a test fails if the committed copies are stale.
 - TypeScript strict mode end to end, one lint and format tool, CI workflow in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 - [Architecture and decisions](docs/architecture.md) · [Assumptions](docs/assumptions.md) · [Path to production](docs/production-path.md)

@@ -16,7 +16,7 @@ import {
   YAxis,
   ZAxis,
 } from 'recharts';
-import { Card, cx, TableShell, td, tdNum, th, thNum } from './ui';
+import { Card, cx, ScrollArea, TableShell, td, tdNum, th, thNum } from './ui';
 
 /*
  * Chart conventions used throughout:
@@ -138,7 +138,7 @@ export function ChartCard({
       }
     >
       {asTable && table ? (
-        <div className="-mx-5 max-h-72 overflow-y-auto">
+        <ScrollArea label={`${title}, as a table`} className="-mx-5 max-h-72 overflow-y-auto">
           <TableShell>
             <thead>
               <tr>
@@ -162,7 +162,7 @@ export function ChartCard({
               ))}
             </tbody>
           </TableShell>
-        </div>
+        </ScrollArea>
       ) : (
         <>
           {series.length >= 2 && (

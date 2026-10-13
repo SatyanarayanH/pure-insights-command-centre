@@ -34,6 +34,8 @@ const EnvSchema = z.object({
   INGEST_API_KEY: z.string().min(16).default('demo-ingest-key-change-me'),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  /** Reverse proxies in front of the API whose X-Forwarded-For may be believed. 0 = none. */
+  TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
   /** Set when served over TLS: adds upgrade-insecure-requests and marks cookies Secure. */
   FORCE_HTTPS: bool(false),
 
@@ -71,6 +73,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     demoPassword: parsed.DEMO_PASSWORD,
     ingestApiKey: parsed.INGEST_API_KEY,
     forceHttps: parsed.FORCE_HTTPS,
+    trustProxy: parsed.TRUST_PROXY,
     corsOrigins: parsed.CORS_ORIGIN.split(',')
       .map((s) => s.trim())
       .filter(Boolean),

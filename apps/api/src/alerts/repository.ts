@@ -23,6 +23,8 @@ interface AlertRow {
   unit: string | null;
   occurrences: number;
   reopen_count: number;
+  flap_count: number;
+  breach_streak: number;
   ok_streak: number;
   obs_since_resolved: number;
   first_seen_at: string;
@@ -49,6 +51,8 @@ const toRecord = (r: AlertRow): AlertRecord => ({
   unit: r.unit,
   occurrences: r.occurrences,
   reopenCount: r.reopen_count,
+  flapCount: r.flap_count,
+  breachStreak: r.breach_streak,
   okStreak: r.ok_streak,
   obsSinceResolved: r.obs_since_resolved,
   firstSeenAt: r.first_seen_at,
@@ -111,9 +115,9 @@ export class AlertRepository {
   insert(a: AlertRecord): void {
     this.db.run(
       `INSERT INTO alerts (id, fingerprint, rule_id, report_id, severity, status, message, value, threshold, unit,
-         occurrences, reopen_count, ok_streak, obs_since_resolved, first_seen_at, last_seen_at, resolved_at,
-         acknowledged_by, acknowledged_at, ack_note, snoozed_until, source, seq)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         occurrences, reopen_count, flap_count, breach_streak, ok_streak, obs_since_resolved, first_seen_at,
+         last_seen_at, resolved_at, acknowledged_by, acknowledged_at, ack_note, snoozed_until, source, seq)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       a.id,
       a.fingerprint,
       a.ruleId,
@@ -126,6 +130,8 @@ export class AlertRepository {
       a.unit,
       a.occurrences,
       a.reopenCount,
+      a.flapCount,
+      a.breachStreak,
       a.okStreak,
       a.obsSinceResolved,
       a.firstSeenAt,
@@ -143,8 +149,9 @@ export class AlertRepository {
   update(a: AlertRecord): void {
     this.db.run(
       `UPDATE alerts SET severity = ?, status = ?, message = ?, value = ?, threshold = ?, unit = ?, occurrences = ?,
-         reopen_count = ?, ok_streak = ?, obs_since_resolved = ?, last_seen_at = ?, resolved_at = ?,
-         acknowledged_by = ?, acknowledged_at = ?, ack_note = ?, snoozed_until = ?
+         reopen_count = ?, flap_count = ?, breach_streak = ?, ok_streak = ?, obs_since_resolved = ?,
+         last_seen_at = ?, resolved_at = ?, acknowledged_by = ?, acknowledged_at = ?, ack_note = ?,
+         snoozed_until = ?
        WHERE id = ?`,
       a.severity,
       a.status,
@@ -154,6 +161,8 @@ export class AlertRepository {
       a.unit,
       a.occurrences,
       a.reopenCount,
+      a.flapCount,
+      a.breachStreak,
       a.okStreak,
       a.obsSinceResolved,
       a.lastSeenAt,

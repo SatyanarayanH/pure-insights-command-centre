@@ -47,8 +47,8 @@ import {
 } from '@picc/contracts';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { verifyPassword } from '../auth/passwords.js';
-import { toUserDto } from '../auth/principal.js';
+import { hashPassword, verifyPassword } from '../auth/passwords.js';
+import { can, toUserDto } from '../auth/principal.js';
 import { API_PREFIX, SERVICE_NAME, SERVICE_VERSION } from '../config.js';
 import type { Container } from '../container.js';
 import type { UserRow } from '../opsdb/repositories.js';
@@ -57,6 +57,10 @@ import { forbidden, notFound, unauthorized } from './errors.js';
 import { defineRoute, type RouteDefinition } from './registry.js';
 
 export const REFRESH_COOKIE = 'picc_refresh';
+export const SESSION_HINT_COOKIE = 'picc_signed_in';
+
+/** A valid hash of a throwaway value, used to spend the same time on unknown accounts. */
+const DUMMY_PASSWORD_HASH = hashPassword('not-a-real-account');
 
 const ReportParams = z.object({ reportId: ReportIdSchema });
 const AlertParams = z.object({ alertId: z.string().min(1).max(64) });
@@ -73,9 +77,19 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       path: `${API_PREFIX}/auth`,
       maxAge: config.refreshTokenTtlDays * 86_400_000,
     });
+    // Readable by the page and worthless on its own: it only tells the client that a session
+    // may exist, so a first-time visitor does not fire a refresh that is bound to return 401.
+    res.cookie(SESSION_HINT_COOKIE, '1', {
+      httpOnly: false,
+      sameSite: 'strict',
+      secure: config.forceHttps,
+      path: '/',
+      maxAge: config.refreshTokenTtlDays * 86_400_000,
+    });
   };
   const clearRefreshCookie = (res: Response): void => {
     res.clearCookie(REFRESH_COOKIE, { path: `${API_PREFIX}/auth` });
+    res.clearCookie(SESSION_HINT_COOKIE, { path: '/' });
   };
   const readRefreshCookie = (req: Request): string | undefined =>
     (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
@@ -131,9 +145,21 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       response: AuthResponseSchema,
       handler: async ({ body, res, requestId }) => {
         const user = c.users.findByEmail(body.email);
-        // Same message and (roughly) same work whether the account exists or not.
-        if (!user || !verifyPassword(body.password, user.password_hash))
+        // Same message and the same work whether or not the account exists: an unknown email
+        // is still checked against a real hash, so response time does not reveal which emails
+        // have accounts.
+        const matches = verifyPassword(body.password, user?.password_hash ?? DUMMY_PASSWORD_HASH);
+        if (!user || !matches) {
+          c.audit.record({
+            actor: 'anonymous',
+            actorRole: 'none',
+            action: 'auth.login_failed',
+            targetType: 'user',
+            targetId: body.email.slice(0, 120),
+            requestId,
+          });
           throw unauthorized('Invalid email or password.');
+        }
         return startSession(user, res, 'password', requestId);
       },
     }),
@@ -264,7 +290,14 @@ export function buildRoutes(c: Container): RouteDefinition[] {
       rowScoped: true,
       query: ReportListQuerySchema,
       response: pageOf(ReportSummarySchema),
-      handler: ({ principal, query }) => c.reports.list(principal, query),
+      handler: ({ principal, query }) => {
+        // Filtering by a real address would let a caller who only sees masked emails work out
+        // who owns what, one guess at a time.
+        if (query.owner && !can(principal, 'pii:read')) {
+          throw forbidden('Filtering by owner requires the "pii:read" permission.');
+        }
+        return c.reports.list(principal, query);
+      },
     }),
     defineRoute({
       method: 'get',

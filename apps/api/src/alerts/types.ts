@@ -20,6 +20,10 @@ export interface AlertRecord {
   unit: string | null;
   occurrences: number;
   reopenCount: number;
+  /** Reopens since the alert last fired steadily. Drives the flapping label; decays. */
+  flapCount: number;
+  /** Consecutive breaching observations. */
+  breachStreak: number;
   /** Consecutive healthy observations while the alert is open. */
   okStreak: number;
   /** Healthy observations since the alert resolved; a breach soon after reopens it. */

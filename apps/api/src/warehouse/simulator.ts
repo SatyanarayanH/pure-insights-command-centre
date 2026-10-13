@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { csvLine, parseCsvObjects } from './csv.js';
 import { createRng, hashSeed } from './prng.js';
 
-export const SIMULATOR_VERSION = 3;
+export const SIMULATOR_VERSION = 4;
 
 export interface SimulationParams {
   seed: string;
@@ -170,7 +170,16 @@ interface ReportPeriodInput {
   reportId: string;
   periodSeq: number;
   queryCount: number;
-  credits: number;
+  /** Null when the cell is blank or not a number. */
+  credits: number | null;
+}
+
+/** Blank and non-numeric cells are "no figure", not zero and not NaN. */
+function numberOrNull(text: string | undefined): number | null {
+  const trimmed = (text ?? '').trim();
+  if (trimmed === '') return null;
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : null;
 }
 
 /** Reads the raw dataset. Period is the nth occurrence of a report id, in file order. */
@@ -183,8 +192,8 @@ export function readReportPeriods(rawCsv: string): ReportPeriodInput[] {
     return {
       reportId,
       periodSeq,
-      queryCount: Number(row.query_count_last_30d),
-      credits: Number(row.snowflake_credits_consumed),
+      queryCount: Math.max(0, numberOrNull(row.query_count_last_30d) ?? 0),
+      credits: numberOrNull(row.snowflake_credits_consumed),
     };
   });
 }
@@ -204,7 +213,7 @@ export function simulateAccountUsage(rawCsv: string, params: SimulationParams): 
   // valid credits as the assumed true cost.
   const validCreditsByReport = new Map<string, number[]>();
   for (const r of inputs) {
-    if (r.credits >= 0) {
+    if (r.credits !== null && r.credits >= 0) {
       const list = validCreditsByReport.get(r.reportId) ?? [];
       list.push(r.credits);
       validCreditsByReport.set(r.reportId, list);
@@ -258,7 +267,8 @@ export function simulateAccountUsage(rawCsv: string, params: SimulationParams): 
     rngKey: string;
     period: Period;
     rows: number;
-    reportedCredits: number;
+    /** Null: the source had no usable figure, so the attribution log has none either. */
+    reportedCredits: number | null;
     trueCredits: number;
     warehouseIndex: number;
     user: (i: number, rng: ReturnType<typeof createRng>) => string;
@@ -274,10 +284,15 @@ export function simulateAccountUsage(rawCsv: string, params: SimulationParams): 
 
     // Round each query to 6 dp, then put the rounding residual on the largest query so the
     // period sum equals the dataset value exactly.
-    const reported = weights.map((w) => round((opts.reportedCredits * w) / weightTotal, 6));
-    const residual = round(opts.reportedCredits - reported.reduce((a, b) => a + b, 0), 6);
-    const largest = weights.indexOf(Math.max(...weights));
-    reported[largest] = round(reported[largest]! + residual, 6);
+    const total = opts.reportedCredits;
+    const reported: (number | null)[] = weights.map((w) =>
+      total === null ? null : round((total * w) / weightTotal, 6),
+    );
+    if (total !== null) {
+      const residual = round(total - reported.reduce<number>((a, b) => a + (b ?? 0), 0), 6);
+      const largest = weights.indexOf(Math.max(...weights));
+      reported[largest] = round((reported[largest] ?? 0) + residual, 6);
+    }
 
     const days = Math.round((opts.period.end.getTime() - opts.period.start.getTime()) / DAY_MS);
     const dayWeights = Array.from({ length: days }, (_, d) => {
@@ -332,7 +347,7 @@ export function simulateAccountUsage(rawCsv: string, params: SimulationParams): 
         ]),
       );
       attribution.push(
-        csvLine([id, warehouse.id, warehouse.name, tag, user, start, end, reported[i]!, 0]),
+        csvLine([id, warehouse.id, warehouse.name, tag, user, start, end, reported[i] ?? null, 0]),
       );
 
       // Spread the true credits over the warehouse-hours the query was running in.
@@ -350,13 +365,18 @@ export function simulateAccountUsage(rawCsv: string, params: SimulationParams): 
 
   const reportCreditsByPeriod = new Array<number>(periodCount).fill(0);
 
+  const allValid = [...validCreditsByReport.values()].flat();
   for (const input of inputs) {
-    const isDefective = input.credits < 0;
+    const isDefective = input.credits === null || input.credits < 0;
+    // Best guess at the real cost behind a defective figure: this report's own median, or the
+    // whole file's when the report has no valid figure at all.
+    const ownValid = validCreditsByReport.get(input.reportId) ?? [];
     const trueCredits = isDefective
-      ? median(validCreditsByReport.get(input.reportId) ?? [])
-      : input.credits;
-    if (isDefective) totals.creditsReportedNegative += input.credits;
-    else totals.creditsReportedPositive += input.credits;
+      ? median(ownValid.length ? ownValid : allValid)
+      : (input.credits as number);
+    if (input.credits !== null && input.credits < 0)
+      totals.creditsReportedNegative += input.credits;
+    else if (input.credits !== null) totals.creditsReportedPositive += input.credits;
     reportCreditsByPeriod[input.periodSeq]! += trueCredits;
 
     emitQueries({

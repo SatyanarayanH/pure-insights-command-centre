@@ -1,6 +1,6 @@
 import type { DqFinding, DqRule, DqSummary, QuarantineRow } from '@picc/contracts';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { CircleCheck, CircleX } from 'lucide-react';
+import { CircleCheck, CircleX, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import {
@@ -11,6 +11,7 @@ import {
   PageHeader,
   Pager,
   QueryBoundary,
+  ScrollArea,
   Stat,
   TableShell,
   td,
@@ -59,7 +60,6 @@ function RuleTable({
             className={cx(
               rule.rowsAffected > 0 && 'cursor-pointer hover:bg-surface-2',
               selected === rule.ruleId && 'bg-surface-2',
-              rule.rowsAffected === 0 && 'opacity-55',
             )}
           >
             <td className={`${td} max-w-xl`}>
@@ -172,7 +172,7 @@ function Body({ summary }: { summary: DqSummary }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label="Rows landed"
           value={fmtNum(summary.rowsLanded)}
@@ -192,7 +192,13 @@ function Body({ summary }: { summary: DqSummary }) {
         <Stat
           label="Reconciliation checks"
           value={`${passed} / ${summary.reconciliation.length}`}
-          tone={passed === summary.reconciliation.length ? 'good' : 'critical'}
+          tone={
+            summary.reconciliation.some((c) => c.status === 'FAIL')
+              ? 'critical'
+              : passed === summary.reconciliation.length
+                ? 'good'
+                : 'warning'
+          }
           icon={<CircleCheck size={16} />}
           hint={`${summary.warehouse.dialect} · suite ran in ${(summary.warehouse.suiteDurationMs / 1000).toFixed(1)} s`}
         />
@@ -231,7 +237,7 @@ function Body({ summary }: { summary: DqSummary }) {
         rule={summary.rules.find((r) => r.ruleId === selected)}
       />
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <Card
           title="Quarantine"
           subtitle="Credit figures withheld from attribution, and what the queries really cost"
@@ -239,7 +245,7 @@ function Body({ summary }: { summary: DqSummary }) {
         >
           <QueryBoundary query={quarantine}>
             {({ items }) => (
-              <div className="max-h-96 overflow-y-auto">
+              <ScrollArea label="Quarantined rows" className="max-h-96 overflow-y-auto">
                 <TableShell>
                   <thead className="sticky top-0 bg-surface">
                     <tr>
@@ -266,7 +272,7 @@ function Body({ summary }: { summary: DqSummary }) {
                     ))}
                   </tbody>
                 </TableShell>
-              </div>
+              </ScrollArea>
             )}
           </QueryBoundary>
         </Card>
@@ -276,7 +282,7 @@ function Body({ summary }: { summary: DqSummary }) {
           subtitle="The SQL suite checks its own arithmetic; the app does not start if one fails"
           flush
         >
-          <div className="max-h-96 overflow-y-auto">
+          <ScrollArea label="Reconciliation checks" className="max-h-96 overflow-y-auto">
             <TableShell>
               <thead className="sticky top-0 bg-surface">
                 <tr>
@@ -304,6 +310,14 @@ function Body({ summary }: { summary: DqSummary }) {
                         <Badge tone="good" icon={<CircleCheck size={12} />}>
                           Pass
                         </Badge>
+                      ) : c.status === 'WARN' ? (
+                        <Badge
+                          tone="warning"
+                          icon={<TriangleAlert size={12} />}
+                          title="Advisory: describes the shape of the input. It does not block start-up."
+                        >
+                          Warn
+                        </Badge>
                       ) : (
                         <Badge tone="critical" icon={<CircleX size={12} />}>
                           Fail
@@ -314,7 +328,7 @@ function Body({ summary }: { summary: DqSummary }) {
                 ))}
               </tbody>
             </TableShell>
-          </div>
+          </ScrollArea>
         </Card>
       </div>
 

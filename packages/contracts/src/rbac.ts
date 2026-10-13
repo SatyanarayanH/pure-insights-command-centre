@@ -94,14 +94,15 @@ export function scopeFor(role: Role): DataScope {
   return ROLE_DEFINITIONS[role].scope;
 }
 
-/** `user_7@company.com` -> `u****7@company.com`. Applied when the caller lacks `pii:read`. */
+/**
+ * `user_7@company.com` -> `u***@company.com`. Applied when the caller lacks `pii:read`.
+ *
+ * Only the first character and the domain survive, and the number of stars is fixed. Keeping
+ * the last character or the length would let a viewer tell `user_7` from `user_12`, which for
+ * a small set of owners is the same as not masking at all.
+ */
 export function maskEmail(email: string): string {
   const at = email.indexOf('@');
   if (at <= 0) return '***';
-  const local = email.slice(0, at);
-  const masked =
-    local.length <= 2
-      ? `${local[0]}*`
-      : `${local[0]}${'*'.repeat(local.length - 2)}${local.at(-1)}`;
-  return `${masked}${email.slice(at)}`;
+  return `${email[0]}***${email.slice(at)}`;
 }

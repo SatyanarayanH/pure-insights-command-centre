@@ -76,9 +76,15 @@ describe('role definitions', () => {
       assert.equal(ROLE_DEFINITIONS[role].scope, 'all');
   });
 
-  it('masks email addresses but keeps them recognisable', () => {
-    assert.equal(maskEmail('user_7@company.com'), 'u****7@company.com');
-    assert.equal(maskEmail('ab@x.io'), 'a*@x.io');
+  it('masks email addresses so that different owners cannot be told apart', () => {
+    assert.equal(maskEmail('user_7@company.com'), 'u***@company.com');
+    assert.equal(
+      maskEmail('user_12@company.com'),
+      'u***@company.com',
+      'neither the last character nor the length survives',
+    );
+    assert.equal(maskEmail('ab@x.io'), 'a***@x.io');
+    assert.equal(maskEmail('not-an-email'), '***');
   });
 });
 
@@ -197,9 +203,21 @@ describe('field-level security (Viewer)', () => {
     const res = await ctx.get('/reports?pageSize=500', tokens.viewer);
     const text = JSON.stringify(res.body);
     assert.doesNotMatch(text, /user_\d+@company\.com/);
-    assert.match(text, /u\*+\d@company\.com/);
+    assert.match(text, /u\*\*\*@company\.com/);
+    const distinct = new Set(
+      res.body.items.map((r: { ownerEmail: string | null }) => r.ownerEmail).filter(Boolean),
+    );
+    assert.equal(distinct.size, 1, 'every owner looks the same to a viewer');
     const alerts = await ctx.get('/alerts?status=all&pageSize=500', tokens.viewer);
     assert.doesNotMatch(JSON.stringify(alerts.body), /user_\d+@company\.com/);
+  });
+
+  it('cannot use the owner filter to work out who owns what', async () => {
+    const res = await ctx.get('/reports?owner=user_7@company.com', tokens.viewer);
+    assert.equal(res.status, 403);
+    assert.match(res.body.detail, /pii:read/);
+    // The same filter is fine for a role that may see the addresses anyway.
+    assert.equal((await ctx.get('/reports?owner=user_7@company.com', tokens.finops)).body.total, 7);
   });
 
   it('cannot sort its way to cost information', async () => {
