@@ -30,13 +30,17 @@
     "docs:check": "npm run docs:generate -w @picc/api -- --check",
     "screenshots": "SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts",
     "warehouse:build": "npm run warehouse:build -w @picc/api",
-    "sql:snowflake": "npm install --prefix tools/snowflake --no-audit --no-fund && tsx tools/snowflake/run.ts"
+    "sql:snowflake": "npm install --prefix tools/snowflake --no-audit --no-fund && tsx tools/snowflake/run.ts",
+    "demo:gif": "DEMO_GIF=1 playwright test e2e/demo-gif.spec.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
     "@playwright/test": "^1.64.0",
+    "@types/pngjs": "^6.0.5",
     "concurrently": "^9.2.1",
+    "gifenc": "^1.0.3",
     "marked": "^18.1.1",
+    "pngjs": "^7.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

@@ -199,6 +199,23 @@ function compare(
 }
 
 loadDotEnv();
+
+// Fail fast, before doing any work, with everything that is missing listed at once.
+const missing = ['SNOWFLAKE_ACCOUNT', 'SNOWFLAKE_USER'].filter((name) => !process.env[name]);
+if (
+  !process.env.SNOWFLAKE_PASSWORD &&
+  !process.env.SNOWFLAKE_TOKEN &&
+  !process.env.SNOWFLAKE_PRIVATE_KEY_PATH
+) {
+  missing.push('one of SNOWFLAKE_PASSWORD, SNOWFLAKE_TOKEN or SNOWFLAKE_PRIVATE_KEY_PATH');
+}
+if (missing.length > 0) {
+  console.error(`Not configured for Snowflake. Missing: ${missing.join('; ')}.`);
+  console.error(
+    'Put them in a .env file in the repository root (git-ignored). See .env.example and sql/README.md.',
+  );
+  process.exit(2);
+}
 const rawCsv = process.env.RAW_CSV ?? DEFAULT_RAW_CSV;
 const dataDir = process.env.GENERATED_DIR ?? DEFAULT_GENERATED_DIR;
 const database = (process.env.SNOWFLAKE_DATABASE ?? 'PURE_INSIGHTS_SIM').toUpperCase();

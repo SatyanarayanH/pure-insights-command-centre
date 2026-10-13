@@ -4,7 +4,9 @@ Case Study 3 · Technical Data AI Validation (Monetization)
 
 An operational admin dashboard for the Pure Insights analytics portal. It restores what the business lost when it moved off Tableau Server: who owns each report, which ones are failing or slow, and what each one costs in Snowflake credits.
 
-![Overview](docs/screenshots/02-overview.png)
+![A live alert crossing two sessions, then orphan remediation, cost and data quality](docs/demo.gif)
+
+*Recorded from the running app by `npm run demo:gif`: a viewer's screen receives an alert that an admin causes in a separate session.*
 
 ## Run it
 
@@ -116,6 +118,7 @@ What the admin views of Tableau Server provided, and what replaces each.
 | `npm run sql:snowflake` | Run the same suite on a Snowflake account and compare with DuckDB |
 | `npm run docs:generate` | Regenerate OpenAPI, AsyncAPI, API reference, data-quality report |
 | `npm run docs:pdf` | Rebuild the specification PDF |
+| `npm run screenshots` / `npm run demo:gif` | Regenerate the README screenshots and the demo recording |
 | `npm run reset` | Delete local state and the cached warehouse |
 
 Configuration is by environment variable; every one has a default. See [`.env.example`](.env.example).
@@ -124,6 +127,7 @@ Configuration is by environment variable; every one has a default. See [`.env.ex
 
 | | |
 | --- | --- |
+| ![Overview](docs/screenshots/02-overview.png) | ![Reports](docs/screenshots/03-reports.png) |
 | ![Alerts](docs/screenshots/06-alerts.png) | ![Orphaned reports](docs/screenshots/05-orphans.png) |
 | ![Cost](docs/screenshots/07-cost.png) | ![Data quality](docs/screenshots/08-data-quality.png) |
 | ![Report detail](docs/screenshots/04-report-detail.png) | ![Access matrix](docs/screenshots/09-access-matrix.png) |

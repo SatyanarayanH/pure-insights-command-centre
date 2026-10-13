@@ -16,3 +16,4 @@ test-results/
 submission/
 
 .DS_Store
+snowflake.log
